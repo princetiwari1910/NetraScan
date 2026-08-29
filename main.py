@@ -1,271 +1,191 @@
-import io
-import base64
 import os
-from typing import Dict, Any
+import uuid
+import shutil
+import asyncio
+import tempfile
+from typing import Optional
 
-import cv2
-import numpy as np
-from PIL import Image
-
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
-from pytorch_grad_cam import GradCAM
-from pytorch_grad_cam.utils.image import show_cam_on_image
-from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
-
-from fastapi import FastAPI, File, UploadFile, HTTPException, status
+from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status
+from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+
+from schemas import (
+    HealthResponse,
+    AnalysisResponse,
+    AnalysisSuccessResponse,
+    AnalysisRecaptureResponse,
+    AIServiceUnavailableResponse,
+    ReportGenerateRequest
+)
+from services import (
+    validate_file,
+    assess_basic_integrity,
+    AIService,
+    MockAIService,
+    ReportService
+)
 
 # -----------------------------------------------------------------------------
-# Configuration and Constants
+# Configuration & Dynamic AI Service Loader
 # -----------------------------------------------------------------------------
-ICDR_STAGES: Dict[int, str] = {
-    0: "No Diabetic Retinopathy",
-    1: "Mild Non-Proliferative Diabetic Retinopathy",
-    2: "Moderate Non-Proliferative Diabetic Retinopathy",
-    3: "Severe Non-Proliferative Diabetic Retinopathy",
-    4: "Proliferative Diabetic Retinopathy"
-}
+USE_MOCK = os.getenv("NETRASCAN_USE_MOCK", "false").lower() in ("true", "1", "yes")
 
-BLUR_THRESHOLD = float(os.getenv("BLUR_THRESHOLD", "100.0"))
-IMAGE_SIZE = (380, 380)  # Standard input resolution for EfficientNet-B4
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
+if USE_MOCK:
+    ai_service = MockAIService()
+    print("🚀 NetraScan initialized in MOCK AI mode.")
+else:
+    try:
+        ai_service = AIService()
+        print(f"🚀 NetraScan initialized with PyTorch EfficientNet-B4 on {ai_service.device}.")
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to load PyTorch model ({e}). Falling back to MockAIService.")
+        ai_service = MockAIService()
+        USE_MOCK = True
 
-# -----------------------------------------------------------------------------
-# Pydantic Schemas
-# -----------------------------------------------------------------------------
-class QualityMetric(BaseModel):
-    laplacian_variance: float = Field(..., description="Laplacian variance score measuring image sharpness")
-    is_blurry: bool = Field(..., description="Whether the image is considered blurry based on threshold")
-    threshold: float = Field(..., description="Blur threshold used for quality gatekeeping")
-    status: str = Field(..., description="'Pass' or 'Warning: Potential Blur'")
-
-class PredictionResponse(BaseModel):
-    dr_grade: int = Field(..., ge=0, le=4, description="ICDR DR severity grade (0 to 4)")
-    stage_name: str = Field(..., description="Descriptive clinical stage name")
-    referable: bool = Field(..., description="True if grade >= 2 (Moderate, Severe, or Proliferative DR)")
-    confidence: float = Field(..., description="Confidence probability for predicted class (0.0 to 1.0)")
-    class_probabilities: Dict[str, float] = Field(..., description="Softmax probabilities across all 5 ICDR classes")
-    heatmap_image: str = Field(..., description="Base64 encoded JPEG of Grad-CAM overlay heatmap")
-    quality_metric: QualityMetric = Field(..., description="Image quality evaluation metrics")
-
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    model: str
-    device: str
-    num_classes: int
+ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
 
 # -----------------------------------------------------------------------------
-# Model Initialization
-# -----------------------------------------------------------------------------
-def load_model(weights_path: str = None) -> nn.Module:
-    """
-    Initializes an EfficientNet-B4 model with a 5-class linear classifier
-    corresponding to ICDR diabetic retinopathy grading (0 to 4).
-    """
-    model = models.efficientnet_b4(weights=models.EfficientNet_B4_Weights.DEFAULT)
-    in_features = model.classifier[1].in_features
-    model.classifier[1] = nn.Linear(in_features, 5)
-
-    if weights_path and os.path.exists(weights_path):
-        state_dict = torch.load(weights_path, map_location=DEVICE)
-        model.load_state_dict(state_dict)
-        print(f"Loaded custom weights from {weights_path}")
-
-    model.to(DEVICE)
-    model.eval()
-    return model
-
-model = load_model(os.getenv("MODEL_WEIGHTS_PATH", None))
-
-# Target layer for Grad-CAM in EfficientNet-B4 (the final convolutional block)
-target_layers = [model.features[-1]]
-
-# PyTorch transformation pipeline
-preprocess_transform = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize(IMAGE_SIZE),
-    transforms.ToTensor(),
-    transforms.Normalize(
-        mean=[0.485, 0.456, 0.406],
-        std=[0.229, 0.224, 0.225]
-    )
-])
-
-# -----------------------------------------------------------------------------
-# Image Processing & Quality Gatekeeper Functions
-# -----------------------------------------------------------------------------
-def calculate_laplacian_variance(image_bgr: np.ndarray) -> float:
-    """Computes the variance of the Laplacian filter as a sharpness/blur metric."""
-    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
-    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
-
-def apply_clahe(image_rgb: np.ndarray, clip_limit: float = 2.0, tile_grid_size: tuple = (8, 8)) -> np.ndarray:
-    """
-    Applies Contrast Limited Adaptive Histogram Equalization (CLAHE)
-    on the L-channel in LAB color space for retinal fundus contrast enhancement.
-    """
-    lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB)
-    l_channel, a_channel, b_channel = cv2.split(lab)
-    
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-    enhanced_l = clahe.apply(l_channel)
-    
-    enhanced_lab = cv2.merge((enhanced_l, a_channel, b_channel))
-    enhanced_rgb = cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2RGB)
-    return enhanced_rgb
-
-def generate_gradcam_overlay(
-    input_tensor: torch.Tensor,
-    rgb_image_resized: np.ndarray,
-    target_class: int
-) -> str:
-    """
-    Computes Grad-CAM heatmap on the final convolutional layer of EfficientNet-B4,
-    overlays it on the input image, and returns the result as a Base64 JPEG string.
-    """
-    # Initialize GradCAM
-    cam = GradCAM(model=model, target_layers=target_layers)
-    targets = [ClassifierOutputTarget(target_class)]
-
-    # Generate CAM mask
-    grayscale_cam = cam(input_tensor=input_tensor, targets=targets)
-    grayscale_cam = grayscale_cam[0, :]
-
-    # Normalized float image in [0, 1] for GradCAM overlay
-    rgb_float = np.float32(rgb_image_resized) / 255.0
-    visualization = show_cam_on_image(rgb_float, grayscale_cam, use_rgb=True)
-
-    # Encode to JPEG base64
-    pil_img = Image.fromarray(visualization)
-    buffer = io.BytesIO()
-    pil_img.save(buffer, format="JPEG", quality=90)
-    b64_str = base64.b64encode(buffer.getvalue()).decode("utf-8")
-    
-    return f"data:image/jpeg;base64,{b64_str}"
-
-# -----------------------------------------------------------------------------
-# FastAPI Application & Endpoints
+# FastAPI App Initialization & CORS
 # -----------------------------------------------------------------------------
 app = FastAPI(
-    title="NetraScan Backend",
-    description="Diabetic Retinopathy Screening API with EfficientNet-B4, CLAHE enhancement, and Grad-CAM explainability.",
+    title="NetraScan AI API",
+    description="Modular Diabetic Retinopathy Screening, Triage & Explainable Clinical Reporting System.",
     version="1.0.0"
 )
 
-# Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production to frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# -----------------------------------------------------------------------------
+# API Endpoints
+# -----------------------------------------------------------------------------
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
-    """Health check endpoint confirming API status and model readiness."""
+    """Health check endpoint providing service status, mode, and backend info."""
     return HealthResponse(
         status="healthy",
         service="NetraScan DR Screening Backend",
-        model="EfficientNet-B4 (ICDR 5-Class)",
-        device=str(DEVICE),
+        version="1.0.0",
+        mode="mock" if USE_MOCK else "live",
+        device=str(getattr(ai_service, "device", "cpu")),
         num_classes=5
     )
 
-@app.post("/api/predict", response_model=PredictionResponse, tags=["Inference"])
-async def predict_dr(file: UploadFile = File(...)):
+@app.post("/analyze", response_model=AnalysisResponse, tags=["Inference & Triage"])
+async def analyze_fundus_image(file: UploadFile = File(...)):
     """
-    Predicts Diabetic Retinopathy stage from a retinal fundus image.
-    
-    - Quality gatekeeping via Laplacian variance.
-    - Fundus contrast enhancement via CLAHE.
-    - EfficientNet-B4 deep feature extraction & 5-class ICDR classification.
-    - Grad-CAM explainable AI visualization returned as a Base64 image.
+    Analyzes an uploaded retinal fundus image:
+    1. Validates file constraints (MIME type, extension, size).
+    2. Performs OpenCV integrity and Laplacian blur quality gatekeeping.
+    3. Executes AI inference (EfficientNet-B4 + Grad-CAM) with a strict 5.0s timeout.
+    4. Automatically cleans up temporary files.
     """
-    # 1. Validate File Content-Type
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid file type '{file.content_type}'. Please upload an image file (JPEG, PNG, etc.)."
-        )
+    # 1. Validate file metadata
+    validate_file(file)
+
+    # 2. Save uploaded stream to a temporary file
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or ".jpg")[1])
+    temp_path = temp_file.name
 
     try:
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        image_bgr = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
 
-        if image_bgr is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Unable to decode image. The file may be corrupt or in an unsupported format."
+        # 3. Assess basic image integrity & blur gatekeeping
+        is_gradable, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
+        if not is_gradable:
+            return AnalysisRecaptureResponse(
+                status="recapture_required",
+                reason=reason or "Image quality does not meet clinical standards for grading.",
+                recommendation=recommendation or "Please recapture with proper focus and illumination.",
+                quality_metric=quality_metric
             )
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Error reading uploaded file: {str(e)}"
-        )
 
-    # 2. Quality Gatekeeper: Laplacian Variance Blur Filter
-    lap_var = calculate_laplacian_variance(image_bgr)
-    is_blurry = lap_var < BLUR_THRESHOLD
-    quality_metric = QualityMetric(
-        laplacian_variance=round(lap_var, 2),
-        is_blurry=is_blurry,
-        threshold=BLUR_THRESHOLD,
-        status="Pass" if not is_blurry else "Warning: Potential Blur"
+        # 4. Execute AI analysis with 5.0s timeout
+        try:
+            analysis_result = await asyncio.wait_for(
+                asyncio.to_thread(ai_service.analyze_fundus, temp_path, file.filename or ""),
+                timeout=ANALYSIS_TIMEOUT_SECONDS
+            )
+            return analysis_result
+        except asyncio.TimeoutError:
+            return AIServiceUnavailableResponse(
+                status="service_unavailable",
+                error=f"AI diagnostic inference timed out after {ANALYSIS_TIMEOUT_SECONDS} seconds.",
+                details="The server was unable to complete deep learning model evaluation within the timeout window."
+            )
+        except Exception as e:
+            return AIServiceUnavailableResponse(
+                status="service_unavailable",
+                error="An unexpected internal error occurred during AI analysis.",
+                details=str(e)
+            )
+
+    finally:
+        # 5. Guaranteed Auto-cleanup of temporary file
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as clean_err:
+                print(f"Error removing temp file {temp_path}: {clean_err}")
+
+# Legacy alias endpoint for backwards compatibility with frontend
+@app.post("/api/predict", response_model=AnalysisResponse, tags=["Inference & Triage"], include_in_schema=False)
+async def legacy_predict(file: UploadFile = File(...)):
+    return await analyze_fundus_image(file=file)
+
+@app.post("/report/generate", tags=["Reports"])
+async def generate_clinical_report(request: ReportGenerateRequest):
+    """
+    Generates and persists a standardized, printable HTML clinical report
+    containing patient metadata, ICDR severity findings, referral advice, and Grad-CAM visualization.
+    """
+    report_id = f"NTR-{uuid.uuid4().hex[:8].upper()}"
+    html_content = ReportService.generate_html_report(
+        patient_info=request.patient_info,
+        analysis_result=request.analysis_result,
+        report_id=report_id
     )
+    ReportService.save_report(report_id, html_content)
 
-    # 3. Color Conversion & CLAHE Enhancement
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-    enhanced_rgb = apply_clahe(image_rgb, clip_limit=2.0, tile_grid_size=(8, 8))
-
-    # Resize enhanced image to model input size for CAM overlay alignment
-    rgb_resized = cv2.resize(enhanced_rgb, IMAGE_SIZE)
-
-    # 4. Model Preprocessing & Inference
-    input_tensor = preprocess_transform(enhanced_rgb).unsqueeze(0).to(DEVICE)
-
-    with torch.no_grad():
-        logits = model(input_tensor)
-        probabilities = torch.softmax(logits, dim=1).cpu().squeeze(0).numpy()
-
-    predicted_grade = int(np.argmax(probabilities))
-    confidence_score = float(probabilities[predicted_grade])
-
-    # 5. Format Class Probabilities
-    class_probs = {
-        f"Grade_{i}_{ICDR_STAGES[i]}": round(float(prob), 4)
-        for i, prob in enumerate(probabilities)
+    return {
+        "status": "success",
+        "report_id": report_id,
+        "view_url": f"/report/{report_id}",
+        "download_url": f"/report/{report_id}?download=true"
     }
 
-    # 6. Generate Grad-CAM Heatmap
-    try:
-        heatmap_base64 = generate_gradcam_overlay(
-            input_tensor=input_tensor,
-            rgb_image_resized=rgb_resized,
-            target_class=predicted_grade
+@app.get("/report/{report_id}", tags=["Reports"])
+async def get_clinical_report(
+    report_id: str,
+    download: bool = Query(default=False, description="Set to true to force file download")
+):
+    """
+    Retrieves a previously generated clinical report by report_id.
+    Renders styled HTML or serves as an attachment for download.
+    """
+    html_content = ReportService.get_report(report_id)
+    if not html_content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Clinical report '{report_id}' not found."
         )
-    except Exception as cam_err:
-        # Fallback in case of CAM generation edge case
-        print(f"Warning: Grad-CAM generation failed: {cam_err}")
-        heatmap_base64 = ""
 
-    # 7. Construct Response
-    return PredictionResponse(
-        dr_grade=predicted_grade,
-        stage_name=ICDR_STAGES[predicted_grade],
-        referable=bool(predicted_grade >= 2),
-        confidence=round(confidence_score, 4),
-        class_probabilities=class_probs,
-        heatmap_image=heatmap_base64,
-        quality_metric=quality_metric
-    )
+    if download:
+        return Response(
+            content=html_content,
+            media_type="text/html",
+            headers={
+                "Content-Disposition": f'attachment; filename="NetraScan_Report_{report_id}.html"'
+            }
+        )
+
+    return HTMLResponse(content=html_content)
 
 if __name__ == "__main__":
     import uvicorn
