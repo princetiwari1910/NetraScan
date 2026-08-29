@@ -1,163 +1,195 @@
-# NetraScan Backend - Diabetic Retinopathy Screening & Clinical Reporting
+# NetraScan: Automated Diabetic Retinopathy Triage & Tele-Ophthalmology System
 
-A modular, production-ready FastAPI backend for **NetraScan**, providing automated Diabetic Retinopathy (DR) grading based on the International Clinical Diabetic Retinopathy (ICDR) scale using **EfficientNet-B4**, **CLAHE** contrast enhancement, OpenCV-based image quality gatekeeping (Laplacian variance), explainable AI with **Grad-CAM**, and printable clinical report generation.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![MATLAB](https://img.shields.io/badge/MATLAB-R2023b%2B-0076A8.svg?logo=mathworks&logoColor=white)](https://www.mathworks.com/products/matlab.html)
+[![Simulink](https://img.shields.io/badge/Simulink-Simulation-E16B00.svg?logo=mathworks&logoColor=white)](https://www.mathworks.com/products/simulink.html)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+**NetraScan** is a clinical-grade AI and systems-engineering platform for automated Diabetic Retinopathy (DR) screening, triage, and district-level healthcare capacity planning. It integrates deep learning (EfficientNet-B4), Explainable AI (Grad-CAM), automated clinical report synthesis, and MATLAB/Simulink capacity modeling for rural and urban tele-ophthalmology networks.
 
 ---
 
-## 📁 Project Structure
+## 🏗️ System Architecture Workflow
 
 ```
-Netrascan backend/
-├── main.py                            # FastAPI app, routing, CORS, dynamic service loader
-├── schemas.py                         # Pydantic data models & response schemas
-├── requirements.txt                   # Project dependencies
-├── README.md                          # Documentation & API specifications
-├── services/
-│   ├── __init__.py                    # Services package exports
-│   ├── file_validation_service.py     # File validation & OpenCV blur/integrity gatekeeper
-│   ├── ai_service.py                  # PyTorch EfficientNet-B4 + CLAHE + Grad-CAM service
-│   ├── mock_ai_service.py             # Mock AI service for rapid local development
-│   └── report_service.py              # Clinical HTML report generator & persistence
-└── reports/                           # Persisted HTML clinical reports
++-------------------+
+|  Raw Fundus Scan  | (Color fundus photograph from camera or smartphone adapter)
++---------+---------+
+          |
+          v
++---------+---------+
+|   Quality Gate    | (OpenCV Laplacian Variance Blur & Integrity Gatekeeper)
++---------+---------+
+          |
+          +----[ Blur / Corrupt ]---> [ Return Recapture Advice (Status 200) ]
+          |
+          v [ Passed Quality Check ]
++---------+---------+
+|       CLAHE       | (Contrast Limited Adaptive Histogram Equalization in LAB space)
++---------+---------+
+          |
+          v
++---------+---------+
+|  EfficientNet-B4  | (5-Class ICDR Severity Classification: Grade 0 - 4)
++---------+---------+
+          |
+          v
++---------+---------------------------------+
+|   ICDR Grade + Grad-CAM Heatmap Overlay   | (Explainable AI Biomarker Localization)
++---------+---------------------------------+
+          |
+          v
++---------+---------+
+|   Report Engine   | (Styled Clinical HTML & Printable PDF Diagnostic Report)
++---------+---------+
+          |
+          v
++---------+---------+
+|  Simulink Queue   | (District Tele-Ophthalmology Patient Flow & Triage Simulation)
++-------------------+
 ```
 
 ---
 
-## 🚀 Features
+## 📂 Monorepo Structure
 
-- **Modular Architecture**: Clean separation between file validation, AI inference, mock services, and report generation.
-- **Dynamic AI Service Loader**: Toggle between live PyTorch deep learning model and fast mock service using `NETRASCAN_USE_MOCK`.
-- **5-Class ICDR Grading**:
-  - `0`: No Diabetic Retinopathy (Normal)
-  - `1`: Mild Non-Proliferative Diabetic Retinopathy (NPDR)
-  - `2`: Moderate Non-Proliferative Diabetic Retinopathy (NPDR)
-  - `3`: Severe Non-Proliferative Diabetic Retinopathy (NPDR)
-  - `4`: Proliferative Diabetic Retinopathy (PDR)
-- **Referable DR Flag**: Automatically flags `referable = true` for cases with Grade $\ge 2$.
-- **Image Quality Gatekeeper**: Evaluates fundus sharpness/blur using OpenCV Laplacian variance. Returns a structured `recapture_required` response if quality is insufficient.
-- **Explainable AI (Grad-CAM)**: Generates localized visual attention maps from the final convolutional layer of EfficientNet-B4 returned directly as a Base64 image.
-- **Clinical HTML Reporting**: Generates branded, printable, responsive HTML clinical reports with patient demographics, severity badges, and Grad-CAM preview.
-- **Automatic Temp File Cleanup & 5.0s Timeout**: Ensures reliable server operation under heavy load.
-
----
-
-## 📦 Installation & Setup
-
-1. **Activate virtual environment:**
-   ```bash
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run in Mock Mode (Recommended for quick frontend testing):**
-   ```bash
-   export NETRASCAN_USE_MOCK=true
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-4. **Run in Live PyTorch Mode:**
-   ```bash
-   export NETRASCAN_USE_MOCK=false
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
+```
+Netrascan/
+├── backend/                       # FastAPI backend services, schemas, and API routes
+│   ├── main.py                    # Application entrypoint & dynamic AI service loader
+│   ├── schemas.py                 # Pydantic data contracts & response models
+│   ├── requirements.txt           # Python dependency specifications
+│   ├── services/
+│   │   ├── file_validation_service.py # Image integrity & Laplacian blur gatekeeper
+│   │   ├── ai_service.py              # PyTorch EfficientNet-B4 + Grad-CAM pipeline
+│   │   ├── mock_ai_service.py         # Mock AI service for rapid local development
+│   │   └── report_service.py          # Clinical HTML report generator & storage
+│   └── reports/                   # Persisted clinical HTML report documents
+│
+├── frontend/                      # Web user interface & tele-ophthalmology dashboard
+│   ├── src/                       # React / Next.js components, pages, and state
+│   ├── public/                    # Static assets, branding, sample fundus images
+│   └── package.json               # Frontend dependencies & build scripts
+│
+├── ml-training/                   # Deep learning training, fine-tuning & evaluation
+│   ├── datasets/                  # Dataset loaders (EyePACS, Messidor-2, APTOS 2019)
+│   ├── preprocessing/             # Retinal cropping, CLAHE normalization, Ben Graham's method
+│   ├── models/                    # Architecture definitions (EfficientNet, ResNet, Vision Transformer)
+│   └── evaluate.py                # Sensitivity, Specificity, Quadratic Weighted Kappa (QWK)
+│
+└── simulink/                      # District workflow & tele-ophthalmology capacity models
+    ├── models/                    # Simulink / SimEvents discrete-event workflow simulations
+    ├── scripts/                   # MATLAB scripts for patient queue arrival rates & latency
+    └── data/                      # Simulated district hospital capacity and triage logs
+```
 
 ---
 
-## 📡 API Endpoints
+## 👥 Team Branching & Contribution Guide
 
-### 1. Health Check
-- **`GET /health`**
-- **Response Example:**
-  ```json
-  {
-    "status": "healthy",
-    "service": "NetraScan DR Screening Backend",
-    "version": "1.0.0",
-    "mode": "mock",
-    "device": "mock-cpu",
-    "num_classes": 5
-  }
-  ```
+To maintain code stability across multi-disciplinary teams, development is organized into dedicated feature tracks:
 
-### 2. Retinal Fundus Analysis & Triage
-- **`POST /analyze`**
-- **Content-Type:** `multipart/form-data`
-- **Body:** `file` (Fundus image)
-- **Success Response (200 OK):**
-  ```json
-  {
-    "status": "success",
-    "dr_grade": 2,
-    "severity_label": "Moderate Non-Proliferative Diabetic Retinopathy",
-    "referable": true,
-    "confidence": 0.9245,
-    "class_probabilities": {
-      "Grade_0_No Diabetic Retinopathy": 0.0112,
-      "Grade_1_Mild Non-Proliferative Diabetic Retinopathy": 0.0435,
-      "Grade_2_Moderate Non-Proliferative Diabetic Retinopathy": 0.9245,
-      "Grade_3_Severe Non-Proliferative Diabetic Retinopathy": 0.0163,
-      "Grade_4_Proliferative Diabetic Retinopathy": 0.0045
-    },
-    "gradcam_image": "data:image/jpeg;base64,...",
-    "evidence": [
-      "Multiple microaneurysms and localized dot-and-blot intraretinal hemorrhages.",
-      "Focal hard lipid exudates identified in macula or posterior pole."
-    ],
-    "quality_metric": {
-      "laplacian_variance": 145.32,
-      "is_blurry": false,
-      "threshold": 100.0,
-      "status": "Pass"
-    }
-  }
-  ```
-- **Recapture Required Response:**
-  ```json
-  {
-    "status": "recapture_required",
-    "reason": "Image failed clarity check (Laplacian variance 42.1 < threshold 100.0). Focus is insufficient for reliable DR lesion grading.",
-    "recommendation": "Recapture fundus photograph ensuring proper optical focus, patient fixation, and minimal motion artifact.",
-    "quality_metric": {
-      "laplacian_variance": 42.1,
-      "is_blurry": true,
-      "threshold": 100.0,
-      "status": "Warning: Potential Blur"
-    }
-  }
-  ```
+| Branch Name | Domain Track | Primary Scope |
+| :--- | :--- | :--- |
+| `feat-backend` | **Backend Engineering** | FastAPI endpoints, schemas, validation, reporting engine |
+| `feat-frontend` | **Frontend Engineering** | Next.js/React clinician dashboard, image uploader, Grad-CAM viewer |
+| `feat-matlab-ml` | **ML & Algorithm Track** | Model training, loss functions, hyperparameter tuning, MATLAB scripts |
+| `feat-simulink` | **Systems & Simulation** | Simulink SimEvents queues, district capacity modeling |
 
-### 3. Generate Clinical Report
-- **`POST /report/generate`**
-- **Body:**
-  ```json
-  {
-    "patient_info": {
-      "patient_id": "PAT-9082",
-      "name": "Jane Doe",
-      "age": 58,
-      "gender": "Female",
-      "examined_eye": "OD - Right Eye",
-      "diabetes_type": "Type 2",
-      "duration_years": 12,
-      "clinician_notes": "Routine annual screening."
-    },
-    "analysis_result": { ... }
-  }
-  ```
-- **Response:**
-  ```json
-  {
-    "status": "success",
-    "report_id": "NTR-A1B2C3D4",
-    "view_url": "/report/NTR-A1B2C3D4",
-    "download_url": "/report/NTR-A1B2C3D4?download=true"
-  }
-  ```
+### Step-by-Step Contribution Workflow
 
-### 4. View / Download Clinical Report
-- **`GET /report/{id}`** -> Renders styled HTML report in browser.
-- **`GET /report/{id}?download=true`** -> Forces download as an HTML file.
+1. **Clone the repository and fetch all branches:**
+   ```bash
+   git clone <REPO_URL>
+   cd Netrascan
+   git fetch origin
+   ```
+
+2. **Switch to your assigned feature track (e.g., `feat-backend`):**
+   ```bash
+   git checkout -b feat-backend origin/feat-backend || git checkout -b feat-backend
+   ```
+
+3. **Make your changes, test locally, and commit with conventional commit messages:**
+   ```bash
+   git add .
+   git commit -m "feat(api): add patient demographics validation to report endpoint"
+   ```
+
+4. **Pull latest changes from `main` to ensure no merge conflicts:**
+   ```bash
+   git fetch origin
+   git merge origin/main
+   ```
+
+5. **Push your feature branch and open a Pull Request:**
+   ```bash
+   git push origin feat-backend
+   ```
+
+---
+
+## ⚡ Backend Quickstart
+
+### 1. Environment Setup
+
+```bash
+# Navigate to backend directory
+cd "Netrascan backend"
+
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install required dependencies
+pip install -r requirements.txt
+```
+
+### 2. Run Modes
+
+#### 🟢 Mock Mode (Fast local development, UI testing without GPU)
+```bash
+export NETRASCAN_USE_MOCK=true
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+#### 🔴 Live PyTorch Mode (Real EfficientNet-B4 inference & Grad-CAM)
+```bash
+export NETRASCAN_USE_MOCK=false
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Interactive Swagger API docs available at: `http://localhost:8000/docs`
+
+---
+
+## 📡 API Endpoints Specification
+
+| Method | Endpoint | Description | Payload / Query | Response Type |
+| :--- | :--- | :--- | :--- | :--- |
+| `GET` | `/health` | System health, active AI mode (`live`/`mock`), device | None | `HealthResponse` (JSON) |
+| `POST` | `/analyze` | Fundus image quality check, DR classification, Grad-CAM | `file: UploadFile` (multipart) | `AnalysisResponse` (Union) |
+| `POST` | `/report/generate` | Generates & persists branded clinical HTML report | `ReportGenerateRequest` (JSON) | `{ status, report_id, view_url, download_url }` |
+| `GET` | `/report/{id}` | Views report in browser or downloads file (`?download=true`) | `id: str`, `download: bool` | `text/html` |
+
+---
+
+## 🎯 Clinical Validation Targets
+
+NetraScan is engineered to meet strict international digital health and tele-ophthalmology benchmarks:
+
+| Clinical Metric | Target Benchmark | Clinical Justification |
+| :--- | :--- | :--- |
+| **Referable DR Sensitivity** | **$> 90.0\%$** | Minimizes false negatives to avoid missing sight-threatening DR (Grade $\ge 2$). |
+| **Referable DR Specificity** | **$> 85.0\%$** | Prevents overwhelming tertiary referral centers with false positive cases. |
+| **Quality Gate Filtering** | **$< 3.0\%$ Error Rate** | Catches ungradable/blurry fundus images prior to clinical diagnostic staging. |
+| **End-to-End Turnaround** | **$< 30.0$ Seconds** | Enables point-of-care screening in rural clinics, outreach camps, and primary centers. |
+| **Explainability (Grad-CAM)** | **IoU $> 0.65$ with Lesions** | Ensures neural network attention aligns with microaneurysms, hemorrhages, and exudates. |
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
