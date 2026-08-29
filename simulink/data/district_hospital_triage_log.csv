@@ -1,0 +1,8 @@
+timestamp,phc_id,patient_id,dr_grade,referable,confidence,triage_status,processing_time_sec
+2026-08-01 09:15:22,PHC_01,PAT_1001,0,false,0.9620,Routine_Local,4.2
+2026-08-01 09:22:45,PHC_01,PAT_1002,2,true,0.9140,Referral_Tertiary,4.8
+2026-08-01 09:35:10,PHC_02,PAT_1003,1,false,0.8850,Routine_Local,4.1
+2026-08-01 09:48:30,PHC_03,PAT_1004,3,true,0.9410,Referral_Urgent,5.1
+2026-08-01 10:05:12,PHC_01,PAT_1005,0,false,0.9810,Routine_Local,3.9
+2026-08-01 10:18:50,PHC_04,PAT_1006,4,true,0.9730,Referral_Immediate,4.6
+2026-08-01 10:30:20,PHC_05,PAT_1007,0,false,0.9540,Routine_Local,4.0
