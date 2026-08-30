@@ -111,27 +111,50 @@ export const checkHealth = async () => {
 // AUTHENTICATION & USERS
 // ============================================================
 export const loginUser = async (email, password) => {
-  const response = await fetchWithTimeoutAndRetry(
-    `${API_BASE_URL}/auth/login`,
-    {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({ email: email.trim(), password }),
-    },
-    1,
-    15000
-  );
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Authentication failed. Please check your credentials.");
-  }
+    if (response.status === 401) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || "Invalid PHC ID or password. Please verify credentials.");
+    }
 
-  const data = await response.json();
-  if (data.access_token) {
-    localStorage.setItem("netrascan_token", data.access_token);
+    if ([502, 503, 504].includes(response.status)) {
+      throw new Error("Authentication service is waking up on Render. Please click login again.");
+    }
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.detail || `Authentication failed (HTTP ${response.status}).`);
+    }
+
+    const data = await response.json();
+    if (data.access_token) {
+      localStorage.setItem("netrascan_token", data.access_token);
+    }
+    return data;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      throw new Error("Authentication request timed out. Please click login again.");
+    }
+    if (err.name === "TypeError" || err.message?.toLowerCase().includes("failed to fetch") || err.message?.toLowerCase().includes("load failed")) {
+      throw new Error("Unable to connect to the authentication service. Please check your network and retry.");
+    }
+    throw err;
   }
-  return data;
 };
 
 export const fetchCurrentUser = async () => {

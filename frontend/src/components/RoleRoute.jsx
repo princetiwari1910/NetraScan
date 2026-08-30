@@ -8,13 +8,14 @@ import { useScreening } from "../context/ScreeningContext";
  */
 export function RoleRoute({ children, allowedRoles = [] }) {
   const { user, phc } = useScreening();
+  const token = localStorage.getItem("netrascan_token");
 
-  if (!user && !phc) {
+  if (!user && !phc && !token) {
     return <Navigate to="/login" replace />;
   }
 
   // If specific roles are required, check user role
-  if (allowedRoles.length > 0) {
+  if (allowedRoles.length > 0 && user) {
     const userRole = user?.role || "STAFF";
     const isAllowed = allowedRoles.includes(userRole) || userRole === "SUPER_ADMIN";
 
