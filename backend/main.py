@@ -10,6 +10,8 @@ from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from core.config import settings
+from db.seed import init_db, seed_data
 from schemas import (
     HealthResponse,
     AnalysisResponse,
@@ -26,11 +28,17 @@ from services import (
     ReportService,
 )
 
+# API Routers
+from api.auth import router as auth_router
+from api.phcs import router as phcs_router
+from api.patients import router as patients_router
+from api.screenings import router as screenings_router
+from api.dashboard import router as dashboard_router
+
 # -----------------------------------------------------------------------------
 # Configuration & Model Lifecycle Loader
 # -----------------------------------------------------------------------------
-USE_MOCK = os.getenv("NETRASCAN_USE_MOCK", "false").lower() in ("true", "1", "yes")
-
+USE_MOCK = settings.NETRASCAN_USE_MOCK
 ai_service = None
 model_error = None
 
@@ -46,14 +54,14 @@ else:
         print(f"❌ FATAL: Failed to load NetraScan ResNet-18 ONNX model: {e}")
         ai_service = None
 
-ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
+ANALYSIS_TIMEOUT_SECONDS = settings.ANALYSIS_TIMEOUT_SECONDS
 
 # -----------------------------------------------------------------------------
 # FastAPI App Initialization & CORS
 # -----------------------------------------------------------------------------
 app = FastAPI(
-    title="NetraScan AI API",
-    description="Diabetic Retinopathy Screening, Triage & Explainable Clinical Reporting System with MATLAB ResNet-18.",
+    title=settings.PROJECT_NAME,
+    description="Diabetic Retinopathy Screening, Triage & Explainable Clinical Reporting System with MATLAB ResNet-18 & PostgreSQL.",
     version="1.0.0",
 )
 
@@ -65,6 +73,30 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+# -----------------------------------------------------------------------------
+# Register Database & API Routers
+# -----------------------------------------------------------------------------
+app.include_router(auth_router, prefix=settings.API_V1_STR)
+app.include_router(phcs_router, prefix=settings.API_V1_STR)
+app.include_router(patients_router, prefix=settings.API_V1_STR)
+app.include_router(screenings_router, prefix=settings.API_V1_STR)
+app.include_router(dashboard_router, prefix=settings.API_V1_STR)
+
+# Also expose without /api prefix for convenience
+app.include_router(auth_router)
+app.include_router(phcs_router)
+app.include_router(patients_router)
+app.include_router(screenings_router)
+app.include_router(dashboard_router)
+
+
+@app.on_event("startup")
+def on_startup():
+    """Initializes and seeds database on application startup."""
+    init_db()
+    seed_data()
+    print("🚀 NetraScan Database & API Services Ready.")
 
 
 # -----------------------------------------------------------------------------

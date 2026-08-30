@@ -26,3 +26,6 @@ wheels/
 *.ses
 reports/
 backend/reports/
+*.db
+*.sqlite
+*.sqlite3

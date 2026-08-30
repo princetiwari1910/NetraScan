@@ -1,20 +1,42 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { checkHealth } from "../services/api";
+import { checkHealth, fetchCurrentUser } from "../services/api";
 
 const ScreeningContext = createContext(null);
 
 export function ScreeningProvider({ children }) {
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem("netrascan_user");
+    return savedUser
+      ? JSON.parse(savedUser)
+      : {
+          id: 3,
+          name: "Suresh Shinde",
+          role: "STAFF",
+          phc_id: 1,
+          phc_code: "PUNE",
+          phc_name: "Primary Health Centre Pune",
+        };
+  });
+
   const [patient, setPatient] = useState({
-    id: "NS-2026-001",
+    id: 1,
+    patient_uid: "NS-PUN-000001",
+    full_name: "Rahul Sharma",
+    name: "Rahul Sharma",
     age: "58",
     gender: "Male",
-    location: "PHC Tele-Screening Unit #01",
+    phone: "+91-9823112233",
+    diabetes_status: "Type 2",
+    diabetes_duration: "8 years",
+    medical_notes: "History of moderate hypertension. Regular metformin.",
+    location: "Primary Health Centre Pune",
     examined_eye: "OD - Right Eye",
   });
 
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [screeningRecord, setScreeningRecord] = useState(null);
   const [healthData, setHealthData] = useState(null);
 
   // Fetch live system health from FastAPI on mount
@@ -24,41 +46,69 @@ export function ScreeningProvider({ children }) {
       setHealthData(data);
     };
     fetchStatus();
-    const interval = setInterval(fetchStatus, 20000);
+    const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // ================= PHC LOGIN =================
-  const [phc, setPhc] = useState(() => {
-    const savedPhc = localStorage.getItem("netrascan_phc");
-    return savedPhc
-      ? JSON.parse(savedPhc)
-      : {
-          id: "PHC-PUNE-001",
-          name: "Primary Health Centre",
-          location: "Pune, Maharashtra",
-        };
-  });
+  // Sync current user profile if token exists
+  useEffect(() => {
+    const token = localStorage.getItem("netrascan_token");
+    if (token) {
+      fetchCurrentUser()
+        .then((u) => {
+          setUser(u);
+          localStorage.setItem("netrascan_user", JSON.stringify(u));
+        })
+        .catch(() => {
+          // Keep current user state
+        });
+    }
+  }, []);
 
-  const loginPhc = (phcData) => {
-    setPhc(phcData);
-    localStorage.setItem("netrascan_phc", JSON.stringify(phcData));
+  // Backwards compatible PHC object
+  const phc = {
+    id: user?.phc_code ? `PHC-${user.phc_code}-001` : "PHC-PUNE-001",
+    name: user?.phc_name || "Primary Health Centre Pune",
+    location: user?.phc_name || "Pune, Maharashtra",
+    code: user?.phc_code || "PUNE",
+  };
+
+  const loginUserContext = (authResponse) => {
+    const u = authResponse.user;
+    setUser(u);
+    localStorage.setItem("netrascan_user", JSON.stringify(u));
+    localStorage.setItem("netrascan_token", authResponse.access_token);
   };
 
   const logoutPhc = () => {
-    setPhc(null);
-    localStorage.removeItem("netrascan_phc");
+    setUser(null);
+    localStorage.removeItem("netrascan_user");
+    localStorage.removeItem("netrascan_token");
   };
 
-  // ================= SCREENING =================
-  const startNewScreening = () => {
-    setPatient({
-      id: `NS-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
-      age: "",
-      gender: "",
-      location: phc?.location || "Primary Health Centre",
-      examined_eye: "OD - Right Eye",
-    });
+  const startNewScreening = (selectedPatient = null) => {
+    if (selectedPatient) {
+      setPatient({
+        ...selectedPatient,
+        name: selectedPatient.full_name,
+        examined_eye: "OD - Right Eye",
+      });
+    } else {
+      setPatient({
+        id: null,
+        patient_uid: `NS-${user?.phc_code || "PUN"}-NEW`,
+        full_name: "",
+        name: "",
+        age: "",
+        gender: "Male",
+        phone: "",
+        diabetes_status: "Type 2",
+        diabetes_duration: "",
+        medical_notes: "",
+        location: user?.phc_name || "Primary Health Centre",
+        examined_eye: "OD - Right Eye",
+      });
+    }
 
     if (preview) {
       URL.revokeObjectURL(preview);
@@ -66,6 +116,7 @@ export function ScreeningProvider({ children }) {
     setImage(null);
     setPreview(null);
     setAnalysisResult(null);
+    setScreeningRecord(null);
   };
 
   const saveImage = (file) => {
@@ -82,9 +133,13 @@ export function ScreeningProvider({ children }) {
     setImage(null);
     setPreview(null);
     setAnalysisResult(null);
+    setScreeningRecord(null);
   };
 
   const value = {
+    user,
+    setUser,
+    loginUserContext,
     patient,
     setPatient,
     image,
@@ -93,10 +148,12 @@ export function ScreeningProvider({ children }) {
     clearImage,
     analysisResult,
     setAnalysisResult,
+    screeningRecord,
+    setScreeningRecord,
     healthData,
     startNewScreening,
     phc,
-    loginPhc,
+    loginPhc: loginUserContext,
     logoutPhc,
   };
 

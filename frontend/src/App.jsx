@@ -5,6 +5,9 @@ import { ScreeningProvider, useScreening } from "./context/ScreeningContext";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import PatientId from "./pages/PatientId";
+import Patients from "./pages/Patients";
+import Dashboard from "./pages/Dashboard";
+import DoctorReview from "./pages/DoctorReview";
 import Screening from "./pages/Screening";
 import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
@@ -13,9 +16,9 @@ import Report from "./pages/Report";
 // ================= PROTECTED ROUTE =================
 
 function ProtectedRoute({ children }) {
-  const { phc } = useScreening();
+  const { phc, user } = useScreening();
 
-  if (!phc) {
+  if (!phc && !user) {
     return <Navigate to="/login" replace />;
   }
 
@@ -38,6 +41,36 @@ function App() {
             element={
               <ProtectedRoute>
                 <Home />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* PATIENT REGISTRY & SCREENING HISTORY */}
+          <Route
+            path="/patients"
+            element={
+              <ProtectedRoute>
+                <Patients />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* PHC TELEMETRY DASHBOARD */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* DOCTOR CLINICAL REVIEW QUEUE */}
+          <Route
+            path="/doctor-review"
+            element={
+              <ProtectedRoute>
+                <DoctorReview />
               </ProtectedRoute>
             }
           />

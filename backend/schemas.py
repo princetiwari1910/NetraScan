@@ -1,11 +1,15 @@
 from typing import List, Optional, Dict, Any, Union, Literal
-from pydantic import BaseModel, Field
+from datetime import datetime
+from pydantic import BaseModel, Field, EmailStr
 
 
+# ============================================================
+# Core AI & Quality Schemas
+# ============================================================
 class QualityMetric(BaseModel):
     laplacian_variance: float = Field(..., description="Laplacian variance score measuring sharpness")
     is_blurry: bool = Field(..., description="Flag indicating if image is below blur threshold")
-    threshold: float = Field(default=100.0, description="Threshold used to evaluate blur")
+    threshold: float = Field(default=35.0, description="Threshold used to evaluate blur")
     status: str = Field(default="Pass", description="Quality status ('Pass' or 'Warning: Potential Blur')")
 
 
@@ -59,10 +63,205 @@ class AIServiceUnavailableResponse(BaseModel):
     details: Optional[str] = Field(default=None, description="Optional diagnostic details")
 
 
-# Discriminated union response for /analyze
 AnalysisResponse = Union[AnalysisSuccessResponse, AnalysisRecaptureResponse, AIServiceUnavailableResponse]
 
 
+# ============================================================
+# PHC Schemas
+# ============================================================
+class PHCBase(BaseModel):
+    name: str
+    code: str
+    city: str
+    state: str
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    is_active: bool = True
+
+
+class PHCCreateRequest(PHCBase):
+    pass
+
+
+class PHCUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    address: Optional[str] = None
+    contact_number: Optional[str] = None
+    email: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class PHCResponse(PHCBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# Auth & User Schemas
+# ============================================================
+class LoginRequest(BaseModel):
+    email: str = Field(..., description="User email or PHC Identifier (e.g. PHC-PUNE-001)")
+    password: str = Field(..., description="Account password")
+
+
+class UserResponse(BaseModel):
+    id: int
+    phc_id: Optional[int] = None
+    phc_code: Optional[str] = None
+    phc_name: Optional[str] = None
+    name: str
+    email: str
+    role: str  # SUPER_ADMIN, DOCTOR, STAFF
+    phone: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
+class UserCreateRequest(BaseModel):
+    phc_id: Optional[int] = None
+    name: str
+    email: str
+    password: str
+    role: str = "STAFF"
+    phone: Optional[str] = None
+
+
+# ============================================================
+# Patient Schemas
+# ============================================================
+class PatientBase(BaseModel):
+    full_name: str
+    date_of_birth: Optional[str] = None
+    age: int
+    gender: str  # Male, Female, Other
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    diabetes_status: str = "Type 2"
+    diabetes_duration: Optional[str] = None
+    medical_notes: Optional[str] = None
+
+
+class PatientCreateRequest(PatientBase):
+    phc_id: Optional[int] = None  # Inferred automatically from authenticated staff if not specified
+
+
+class PatientUpdateRequest(BaseModel):
+    full_name: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    diabetes_status: Optional[str] = None
+    diabetes_duration: Optional[str] = None
+    medical_notes: Optional[str] = None
+
+
+class PatientResponse(PatientBase):
+    id: int
+    patient_uid: str
+    phc_id: int
+    phc_name: Optional[str] = None
+    total_screenings: int = 0
+    latest_dr_grade: Optional[int] = None
+    latest_severity_label: Optional[str] = None
+    latest_referable: Optional[bool] = None
+    latest_screened_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# Screening Schemas
+# ============================================================
+class ScreeningCreateRequest(BaseModel):
+    patient_id: int
+    examined_eye: str = "OD - Right Eye"
+
+
+class DoctorVerifyRequest(BaseModel):
+    doctor_decision: int = Field(..., ge=0, le=4, description="Verified DR grade (0 to 4)")
+    doctor_notes: Optional[str] = Field(default=None, description="Clinical notes and verification rationales")
+
+
+class ScreeningResponse(BaseModel):
+    id: int
+    screening_uid: str
+    patient_id: int
+    patient_uid: Optional[str] = None
+    patient_name: Optional[str] = None
+    patient_age: Optional[int] = None
+    patient_gender: Optional[str] = None
+    phc_id: int
+    phc_name: Optional[str] = None
+    performed_by: Optional[str] = None
+    examined_eye: str
+    quality_status: str
+    laplacian_variance: float
+    predicted_grade: int
+    severity_label: str
+    confidence: float
+    referable: bool
+    model_name: str
+    model_version: str
+    inference_time_ms: int
+    gradcam_reference: Optional[str] = None
+    ai_evidence: Optional[List[str]] = None
+    class_probabilities: Optional[Dict[str, float]] = None
+    doctor_verified: bool
+    doctor_id: Optional[int] = None
+    doctor_name: Optional[str] = None
+    doctor_decision: Optional[int] = None
+    doctor_notes: Optional[str] = None
+    screened_at: datetime
+    verified_at: Optional[datetime] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# Dashboard Statistics Schemas
+# ============================================================
+class DashboardStatsResponse(BaseModel):
+    phc_id: Optional[int] = None
+    phc_name: Optional[str] = None
+    total_patients: int
+    total_screenings: int
+    today_screenings: int
+    referable_cases: int
+    urgent_cases: int  # Grade 3 & 4
+    pending_doctor_reviews: int
+    verified_cases: int
+    grade_distribution: Dict[str, int]
+    recent_screenings: List[ScreeningResponse] = []
+
+
+# ============================================================
+# Clinical Report Request Schemas
+# ============================================================
 class PatientInfoRequest(BaseModel):
     patient_id: str = Field(..., description="Unique Patient Identification Number")
     name: str = Field(..., description="Patient Full Name")

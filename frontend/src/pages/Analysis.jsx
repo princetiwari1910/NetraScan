@@ -12,11 +12,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
-import { analyzeRetinalImage } from "../services/api";
+import { analyzeRetinalImage, createScreening } from "../services/api";
 
 function Analysis() {
   const navigate = useNavigate();
-  const { image, preview, setAnalysisResult } = useScreening();
+  const { image, preview, patient, setAnalysisResult, setScreeningRecord } = useScreening();
 
   const [progress, setProgress] = useState(15);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
@@ -74,7 +74,45 @@ function Analysis() {
 
     const runInference = async () => {
       try {
-        const result = await analyzeRetinalImage(image);
+        let result;
+        if (patient?.id && typeof patient.id === "number") {
+          // Call persistent PostgreSQL screening endpoint
+          const record = await createScreening(
+            patient.id,
+            patient.examined_eye || "OD - Right Eye",
+            image
+          );
+          setScreeningRecord(record);
+
+          // Convert to AnalysisSuccessResponse structure for Results page
+          result = {
+            status: "success",
+            dr_grade: record.predicted_grade,
+            severity_label: record.severity_label,
+            referable: record.referable,
+            confidence: record.confidence,
+            class_probabilities: record.class_probabilities || {},
+            gradcam_image: record.gradcam_reference || "",
+            evidence: record.ai_evidence || [],
+            quality_metric: {
+              laplacian_variance: record.laplacian_variance,
+              is_blurry: false,
+              threshold: 35.0,
+              status: record.quality_status,
+            },
+            model: {
+              name: record.model_name,
+              version: record.model_version,
+              runtime: "onnxruntime",
+              target_layer: "res5b_relu",
+              referable_threshold: 0.35,
+              inference_time_ms: record.inference_time_ms,
+            },
+          };
+        } else {
+          // Direct /analyze endpoint
+          result = await analyzeRetinalImage(image);
+        }
 
         clearInterval(progressTimer);
         setProgress(100);
@@ -106,7 +144,7 @@ function Analysis() {
     runInference();
 
     return () => clearInterval(progressTimer);
-  }, [image, navigate, setAnalysisResult, preview]);
+  }, [image, navigate, setAnalysisResult, preview, patient, setScreeningRecord]);
 
   return (
     <div className="analysis-page">
