@@ -1,6 +1,12 @@
+"""
+NetraScan Image Validation & Quality Gatekeeper Service
+Performs file integrity verification, dimension checking, and calibrated Laplacian blur analysis.
+"""
+
 import os
 from typing import Tuple, Optional
 import cv2
+import numpy as np
 from fastapi import UploadFile, HTTPException, status
 
 from schemas import QualityMetric
@@ -17,7 +23,12 @@ ALLOWED_MIME_TYPES = {
 MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB
 MIN_FILE_SIZE_BYTES = 5 * 1024          # 5 KB
 MIN_IMAGE_DIMENSION = 150               # Minimum height/width in pixels
-DEFAULT_BLUR_THRESHOLD = float(os.getenv("BLUR_THRESHOLD", "100.0"))
+
+# Calibrated clinical blur threshold:
+# Real clinical fundus photos have smooth retina with fine vessel contrast (variance typically 40 - 500).
+# Genuinely blurry/unfocused scans exhibit variance < 20 - 30.
+DEFAULT_BLUR_THRESHOLD = float(os.getenv("BLUR_THRESHOLD", "35.0"))
+
 
 def validate_file(file: UploadFile) -> None:
     """
@@ -40,12 +51,14 @@ def validate_file(file: UploadFile) -> None:
             detail=f"Invalid content type '{file.content_type}'. Must be a valid retinal fundus image."
         )
 
+
 def assess_basic_integrity(
     file_path: str,
     blur_threshold: float = DEFAULT_BLUR_THRESHOLD
 ) -> Tuple[bool, QualityMetric, Optional[str], Optional[str]]:
     """
     Assesses the physical integrity and gradability of the retinal fundus image using OpenCV.
+    Calculates Laplacian blur variance on the retinal area to prevent ungradable images from reaching AI inference.
     
     Returns:
         (is_gradable, quality_metric, reason_if_unfit, recommendation_if_unfit)
@@ -74,7 +87,14 @@ def assess_basic_integrity(
 
     # 4. Compute Laplacian variance for blur detection
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-    lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+    
+    # Calculate ROI-aware Laplacian variance (masking black background borders if present)
+    mask = gray > 15
+    if np.count_nonzero(mask) > (width * height * 0.15):
+        lap_var = float(cv2.Laplacian(gray, cv2.CV_64F)[mask].var())
+    else:
+        lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
     is_blurry = lap_var < blur_threshold
 
     quality_metric = QualityMetric(

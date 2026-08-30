@@ -3,6 +3,7 @@ import uuid
 import shutil
 import asyncio
 import tempfile
+import cv2
 from typing import Optional
 
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status
@@ -43,7 +44,6 @@ else:
     except Exception as e:
         model_error = str(e)
         print(f"❌ FATAL: Failed to load NetraScan ResNet-18 ONNX model: {e}")
-        # When LIVE mode is active, do NOT silently fake predictions or fall back to mock
         ai_service = None
 
 ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
@@ -97,13 +97,22 @@ async def health_check():
 async def analyze_fundus_image(file: UploadFile = File(...)):
     """
     Analyzes an uploaded retinal fundus image:
-    1. Checks model availability.
-    2. Validates file constraints (MIME type, extension, size).
-    3. Performs OpenCV integrity and Laplacian blur quality gatekeeping.
-    4. Executes MATLAB ResNet-18 ONNX inference + res5b_relu Grad-CAM with a strict timeout.
-    5. Automatically cleans up temporary files.
+    1. IMAGE UPLOAD & VALIDATION
+    2. IMAGE DECODE & DIMENSIONS
+    3. QUALITY METRIC (Laplacian variance)
+    4. QUALITY GATE (PASS / RECAPTURE)
+    5. MATLAB-CONSISTENT PREPROCESSING (224x224x3 CLAHE)
+    6. ONNX INFERENCE (NetraScan ResNet-18)
+    7. 5-CLASS PROBABILITIES & PREDICTED GRADE
+    8. 0.35 REFERABLE DR DECISION
+    9. res5b_relu GRAD-CAM EXPLAINABILITY
     """
+    filename = file.filename or "unknown_upload.jpg"
+    print(f"\n{'='*70}")
+    print(f"📥 [STEP 1] IMAGE UPLOAD: Received file '{filename}' (Content-Type: {file.content_type})")
+
     if ai_service is None:
+        print("❌ AI Service is unavailable (Model not loaded).")
         return AIServiceUnavailableResponse(
             status="service_unavailable",
             error="Live AI model is unavailable. Please verify MODEL_PATH and ONNX model file.",
@@ -112,15 +121,29 @@ async def analyze_fundus_image(file: UploadFile = File(...)):
 
     validate_file(file)
 
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or ".jpg")[1])
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
     temp_path = temp_file.name
 
     try:
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
+        # Step 2: Image Decode & Dimensions
+        img_check = cv2.imread(temp_path)
+        if img_check is not None:
+            h, w = img_check.shape[:2]
+            print(f"🔍 [STEP 2] IMAGE DECODE: Success, Dimensions = {w}x{h}, Channels = {img_check.shape[2]}")
+        else:
+            print("❌ [STEP 2] IMAGE DECODE: Failed to decode image file.")
+
+        # Step 3 & 4: Quality Metric & Quality Pass/Fail Gate
         is_gradable, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
+        print(f"📊 [STEP 3] QUALITY METRIC: Laplacian Variance = {quality_metric.laplacian_variance}, Threshold = {quality_metric.threshold}")
+        print(f"🚦 [STEP 4] QUALITY GATE: {'PASS (Proceeding to ONNX inference)' if is_gradable else 'FAIL (Recapture Required)'}")
+
         if not is_gradable:
+            print(f"⚠️ Rejection Reason: {reason}")
+            print(f"{'='*70}\n")
             return AnalysisRecaptureResponse(
                 status="recapture_required",
                 reason=reason or "Image quality does not meet clinical standards for grading.",
@@ -128,19 +151,24 @@ async def analyze_fundus_image(file: UploadFile = File(...)):
                 quality_metric=quality_metric,
             )
 
+        # Step 5 to 9: Live ONNX Preprocessing, Inference, and Grad-CAM
         try:
             analysis_result = await asyncio.wait_for(
-                asyncio.to_thread(ai_service.analyze_fundus, temp_path, file.filename or ""),
+                asyncio.to_thread(ai_service.analyze_fundus, temp_path, filename),
                 timeout=ANALYSIS_TIMEOUT_SECONDS,
             )
+            print(f"🎯 [STEP 9] FINAL RESPONSE: Grade={analysis_result.dr_grade}, Confidence={analysis_result.confidence*100:.2f}%, Referable={analysis_result.referable}")
+            print(f"{'='*70}\n")
             return analysis_result
         except asyncio.TimeoutError:
+            print(f"⏱️ Timeout during AI inference after {ANALYSIS_TIMEOUT_SECONDS}s.")
             return AIServiceUnavailableResponse(
                 status="service_unavailable",
                 error=f"AI diagnostic inference timed out after {ANALYSIS_TIMEOUT_SECONDS} seconds.",
                 details="The server was unable to complete deep learning model evaluation within the timeout window.",
             )
         except Exception as e:
+            print(f"❌ Error during AI inference: {e}")
             return AIServiceUnavailableResponse(
                 status="service_unavailable",
                 error="An unexpected internal error occurred during AI analysis.",
