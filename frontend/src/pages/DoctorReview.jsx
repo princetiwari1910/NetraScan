@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchScreenings, verifyScreening } from "../services/api";
+import { fetchScreenings, verifyScreening, openClinicalReport } from "../services/api";
 import {
   Eye,
   CheckCircle2,
@@ -350,26 +350,48 @@ export default function DoctorReview() {
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleOpenReport(selectedScreening)}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      background: "rgba(255, 255, 255, 0.06)",
-                      border: "1px solid #334155",
-                      color: "#F8FAFC",
-                      padding: "8px 14px",
-                      borderRadius: "8px",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <FileText size={15} />
-                    View Clinical Report
-                  </button>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => openClinicalReport(selectedScreening.id, false)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: "#2563EB",
+                        border: "none",
+                        color: "#FFFFFF",
+                        padding: "8px 14px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <FileText size={15} />
+                      View HTML Report
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenReport(selectedScreening)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        background: "rgba(255, 255, 255, 0.06)",
+                        border: "1px solid #334155",
+                        color: "#F8FAFC",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Print Summary
+                    </button>
+                  </div>
                 </div>
 
                 {/* GRAD-CAM & AI PREDICTION BOX */}

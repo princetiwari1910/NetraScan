@@ -1,12 +1,19 @@
 /**
  * NetraScan Centralized API Service
- * Connects frontend directly to FastAPI backend on port 8000.
+ * Connects frontend directly to NetraScan backend on Render (or local dev).
  * Supports JWT authentication, PostgreSQL Patient/Screening Database, and Live ONNX AI Inference.
  */
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+const RAW_URL = (
+  import.meta.env.VITE_API_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  import.meta.env.NEXT_PUBLIC_API_URL ||
+  "https://netrascan-4cem.onrender.com"
 ).replace(/\/$/, "");
+
+// Normalize API Host and API V1 prefix
+export const API_HOST = RAW_URL.endsWith("/api") ? RAW_URL.slice(0, -4) : RAW_URL;
+export const API_BASE_URL = `${API_HOST}/api`;
 
 // Helper to retrieve stored JWT token
 export const getAuthHeaders = () => {
@@ -29,7 +36,7 @@ const handleAuthError = (status) => {
 // ============================================================
 export const checkHealth = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/health`, {
+    const response = await fetch(`${API_HOST}/health`, {
       method: "GET",
       headers: {
         Accept: "application/json",
@@ -42,7 +49,7 @@ export const checkHealth = async () => {
 
     return await response.json();
   } catch (error) {
-    console.warn("FastAPI health check unreachable, using live metadata:", error);
+    console.warn("NetraScan health check warning:", error.message);
     return {
       status: "healthy",
       service: "NetraScan DR Screening Backend",
@@ -65,12 +72,12 @@ export const loginUser = async (email, password) => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: email.trim(), password }),
   });
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Authentication failed. Please check credentials.");
+    throw new Error(err.detail || "Authentication failed. Please check your credentials.");
   }
 
   const data = await response.json();
@@ -225,10 +232,11 @@ export const fetchPatientScreenings = async (patientId) => {
 // ============================================================
 export const createScreening = async (patientId, examinedEye, file) => {
   const formData = new FormData();
-  formData.append("patient_id", patientId);
-  formData.append("examined_eye", examinedEye);
+  formData.append("patient_id", parseInt(patientId, 10));
+  formData.append("examined_eye", examinedEye || "OD - Right Eye");
   formData.append("file", file);
 
+  // NOTE: Do NOT set Content-Type header manually so the browser sets the multipart/form-data boundary
   const response = await fetch(`${API_BASE_URL}/screenings`, {
     method: "POST",
     headers: { ...getAuthHeaders() },
@@ -247,7 +255,7 @@ export const createScreening = async (patientId, examinedEye, file) => {
       errorObj.status = detail.status;
       throw errorObj;
     }
-    throw new Error(detail || "Screening failed.");
+    throw new Error(detail || `Screening failed with HTTP status ${response.status}`);
   }
 
   return await response.json();
@@ -301,6 +309,59 @@ export const verifyScreening = async (screeningId, decision, notes) => {
   return await response.json();
 };
 
+// ============================================================
+// CLINICAL REPORTS (HTML & DOWNLOAD)
+// ============================================================
+export const fetchScreeningReportHtml = async (screeningId, download = false) => {
+  const response = await fetch(
+    `${API_BASE_URL}/screenings/${screeningId}/report?download=${download}`,
+    {
+      headers: { ...getAuthHeaders() },
+    }
+  );
+
+  if (!response.ok) {
+    handleAuthError(response.status);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to fetch clinical report for screening #${screeningId}`);
+  }
+
+  return await response.text();
+};
+
+export const openClinicalReport = async (screeningId, download = false) => {
+  try {
+    const htmlContent = await fetchScreeningReportHtml(screeningId, download);
+
+    if (download) {
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `NetraScan_Report_${screeningId}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } else {
+      const reportWindow = window.open("", "_blank");
+      if (reportWindow) {
+        reportWindow.document.open();
+        reportWindow.document.write(htmlContent);
+        reportWindow.document.close();
+      } else {
+        // If popup blocked, create blob URL
+        const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, "_blank");
+      }
+    }
+  } catch (error) {
+    console.error("Error opening clinical report:", error);
+    alert(error.message || "Failed to load clinical report from backend.");
+  }
+};
+
 export const fetchDashboardStats = async () => {
   const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
     headers: { ...getAuthHeaders() },
@@ -323,19 +384,11 @@ export const analyzeRetinalImage = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  let response = await fetch(`${API_BASE_URL}/analyze`, {
+  const response = await fetch(`${API_HOST}/analyze`, {
     method: "POST",
     headers: { ...getAuthHeaders() },
     body: formData,
   });
-
-  if (response.status === 404) {
-    response = await fetch(`${API_BASE_URL}/api/predict`, {
-      method: "POST",
-      headers: { ...getAuthHeaders() },
-      body: formData,
-    });
-  }
 
   if (!response.ok) {
     handleAuthError(response.status);
@@ -350,7 +403,7 @@ export const analyzeRetinalImage = async (file) => {
       throw errorObj;
     }
     throw new Error(
-      errorData.detail || errorData.message || `Analysis failed (${response.status})`
+      errorData.detail || errorData.message || `Analysis failed with HTTP ${response.status}`
     );
   }
 
@@ -366,13 +419,15 @@ export const generateClinicalReport = async (patientInfo, analysisResult) => {
       gender: patientInfo.gender || "Male",
       examined_eye: patientInfo.examined_eye || "OD - Right Eye",
       diabetes_type: patientInfo.diabetes_status || "Type 2",
-      duration_years: patientInfo.diabetes_duration ? parseInt(String(patientInfo.diabetes_duration).replace(/\D/g, "") || "8", 10) : 8,
+      duration_years: patientInfo.diabetes_duration
+        ? parseInt(String(patientInfo.diabetes_duration).replace(/\D/g, "") || "8", 10)
+        : 8,
       clinician_notes: patientInfo.medical_notes || "Automated preliminary screening via NetraScan AI.",
     },
     analysis_result: analysisResult,
   };
 
-  const response = await fetch(`${API_BASE_URL}/reports/generate`, {
+  const response = await fetch(`${API_HOST}/reports/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -390,6 +445,8 @@ export const generateClinicalReport = async (patientInfo, analysisResult) => {
 };
 
 export default {
+  API_HOST,
+  API_BASE_URL,
   checkHealth,
   loginUser,
   fetchCurrentUser,
@@ -405,6 +462,8 @@ export default {
   fetchScreenings,
   fetchScreeningDetails,
   verifyScreening,
+  fetchScreeningReportHtml,
+  openClinicalReport,
   fetchDashboardStats,
   analyzeRetinalImage,
   generateClinicalReport,
