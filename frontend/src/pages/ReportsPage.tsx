@@ -11,9 +11,9 @@ import {
   ShieldCheck,
   ChevronRight,
   ExternalLink,
+  Printer
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
 
@@ -35,148 +35,186 @@ export const ReportsPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Clinical Diagnostic Reports"
-        subtitle="Standardized tele-ophthalmology PDF/HTML clinical summaries with patient intake, ICDR grading & Grad-CAM visual evidence."
-        badge={
-          <span className="text-xs font-semibold bg-[#FCF4EF] text-[#C85A20] border border-[#F6D7C3] px-3 py-1 rounded-full uppercase tracking-wider">
-            {reports.length} Generated Reports
-          </span>
-        }
-      />
-
-      {/* Reports Summary KPI Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-4 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Total Synthesized</span>
-          <p className="text-xl font-black text-[#17191D] mt-1">{reports.length}</p>
+    <div className="space-y-6 text-slate-100">
+      {/* 1. Header */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <FileText size={22} className="text-[#38BDF8]" />
+            Clinical Diagnostic Reports
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Standardized tele-ophthalmology clinical summaries with patient intake, ICDR grading & Grad-CAM visual evidence
+          </p>
         </div>
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-4 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Doctor Verified</span>
-          <p className="text-xl font-bold text-emerald-800 mt-1">
+
+        <span className="text-xs font-mono font-bold px-3 py-1 rounded-full bg-[#162338] border border-[#1E2E48] text-[#38BDF8]">
+          {reports.length} Generated Reports
+        </span>
+      </div>
+
+      {/* 2. KPI Summary Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-4 shadow-dark-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Total Synthesized
+          </span>
+          <p className="text-xl font-black font-mono text-white mt-1">{reports.length}</p>
+        </div>
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-4 shadow-dark-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Doctor Verified
+          </span>
+          <p className="text-xl font-bold font-mono text-emerald-400 mt-1">
             {reports.filter((r) => r.status === 'reviewed' || r.status === 'exported').length}
           </p>
         </div>
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-4 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Exported / Sent</span>
-          <p className="text-xl font-black text-[#E8752F] mt-1">
-            {reports.filter((r) => r.status === 'exported').length}
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-4 shadow-dark-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Referral Alerts
+          </span>
+          <p className="text-xl font-bold font-mono text-[#FB923C] mt-1">
+            {reports.filter((r) => r.analysis_result.referable).length}
           </p>
         </div>
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-4 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Compliance Standard</span>
-          <p className="text-sm font-bold text-[#17191D] mt-1 flex items-center gap-1">
-            <ShieldCheck size={16} className="text-[#E8752F]" />
-            ICDR Validated
-          </p>
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-4 shadow-dark-sm">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Format Compliance
+          </span>
+          <p className="text-xl font-bold font-mono text-[#38BDF8] mt-1">100% ICDR</p>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white border border-[#EAE9E4] rounded-2xl p-4 shadow-warm-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A8F98]" />
+      {/* 3. Search & Filter Bar */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-4 shadow-dark-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative w-full sm:max-w-xs">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search report ID, patient name..."
+            placeholder="Search report ID or patient name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-[#FAF9F7] border border-[#EAE9E4] focus:bg-white focus:border-[#E8752F] text-[#17191D] focus:outline-none transition shadow-warm-xs"
+            className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-[#162338] border border-[#1E2E48] focus:border-[#38BDF8] text-white placeholder-slate-400 focus:outline-none transition font-mono"
           />
         </div>
 
-        <div className="flex items-center gap-2 text-xs font-semibold text-[#5F6368]">
-          <span>Status:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="text-xs p-1.5 rounded-lg border border-[#EAE9E4] bg-white text-[#17191D] focus:outline-none"
-          >
-            <option value="all">All Statuses</option>
-            <option value="generated">Generated (Unverified)</option>
-            <option value="reviewed">Clinician Verified</option>
-            <option value="exported">Exported to EHR</option>
-          </select>
+        <div className="flex items-center gap-1.5 w-full sm:w-auto">
+          {[
+            { id: 'all', label: 'All Reports' },
+            { id: 'reviewed', label: 'Verified' },
+            { id: 'generated', label: 'Pending Sign-off' },
+          ].map((pill) => (
+            <button
+              key={pill.id}
+              onClick={() => setStatusFilter(pill.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                statusFilter === pill.id
+                  ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm font-bold'
+                  : 'bg-[#162338] border border-[#1E2E48] text-slate-400 hover:text-white'
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Reports Table */}
-      {filteredReports.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title="No Reports Found"
-          description="Synthesize your first clinical report from the Screening Workstation."
-          action={{
-            label: 'Go to Workstation',
-            onClick: () => (window.location.href = '/screening'),
-          }}
-        />
-      ) : (
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs overflow-hidden">
+      {/* 4. Report List Table */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl shadow-dark-sm overflow-hidden">
+        {filteredReports.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              title="No diagnostic reports found"
+              description="No clinical reports match your search or filter criteria."
+              actionLabel="Clear Filter"
+              onAction={() => {
+                setSearchTerm('');
+                setStatusFilter('all');
+              }}
+            />
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-[#EAE9E4] bg-[#FAF9F7] text-[#5F6368] uppercase tracking-wider text-[11px] font-bold">
-                  <th className="py-2.5 pl-3">Report ID</th>
-                  <th className="py-2.5">Patient Details</th>
-                  <th className="py-2.5">AI Staging</th>
-                  <th className="py-2.5">Confidence</th>
-                  <th className="py-2.5">Synthesized Date</th>
-                  <th className="py-2.5">Status</th>
-                  <th className="py-2.5 pr-3 text-right">Actions</th>
+                <tr className="border-b border-[#1E2E48] bg-[#0B1424] text-slate-400 uppercase tracking-wider text-[10px] font-bold">
+                  <th className="py-3 px-4">Report ID</th>
+                  <th className="py-3 px-4">Patient Name</th>
+                  <th className="py-3 px-4">Examined Eye</th>
+                  <th className="py-3 px-4">ICDR Staging</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Timestamp</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F0EFEA]">
+              <tbody className="divide-y divide-[#1E2E48]/60">
                 {filteredReports.map((report) => (
-                  <tr key={report.report_id} className="hover:bg-[#FAF9F7] transition-colors">
-                    <td className="py-3.5 pl-3 font-semibold text-[#E8752F]">{report.report_id}</td>
-                    <td className="py-3.5">
-                      <p className="font-bold text-[#17191D]">{report.patient.name}</p>
-                      <p className="text-[#8A8F98] text-[11px]">ID: {report.patient.patient_id} • {report.patient.examined_eye}</p>
-                    </td>
-                    <td className="py-3.5">
-                      <StatusBadge grade={report.analysis_result.dr_grade} size="sm" />
-                    </td>
-                    <td className="py-3.5 font-bold text-[#17191D]">
-                      {(report.analysis_result.confidence * 100).toFixed(1)}%
-                    </td>
-                    <td className="py-3.5 text-[#5F6368]">
-                      {report.generated_at.substring(0, 10)}
-                    </td>
-                    <td className="py-3.5">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-                          report.status === 'reviewed'
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : report.status === 'exported'
-                            ? 'bg-[#FCF4EF] text-[#C85A20] border-[#F6D7C3]'
-                            : 'bg-amber-50 text-amber-800 border-amber-200'
-                        }`}
-                      >
-                        {report.status === 'reviewed'
-                          ? 'Verified'
-                          : report.status === 'exported'
-                          ? 'Exported'
-                          : 'Generated'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 pr-3 text-right">
+                  <tr
+                    key={report.report_id}
+                    className="hover:bg-[#162338]/50 transition group"
+                  >
+                    <td className="py-3.5 px-4 font-mono font-bold text-white">
                       <Link
                         to={`/reports/${report.report_id}`}
-                        className="px-3 py-1.5 bg-white hover:bg-[#FAF9F7] text-[#17191D] rounded-lg font-bold text-xs transition inline-flex items-center gap-1 border border-[#EAE9E4] hover:border-[#E8752F] shadow-warm-xs"
+                        className="hover:text-[#38BDF8] transition"
                       >
-                        <Eye size={13} />
-                        <span>View Document</span>
+                        {report.report_id}
                       </Link>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-white">{report.patient.name}</div>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {report.patient.patient_id}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-300">
+                      {report.patient.examined_eye}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <StatusBadge grade={report.analysis_result.dr_grade} />
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
+                          report.status === 'reviewed' || report.status === 'exported'
+                            ? 'bg-emerald-950/60 text-emerald-400 border border-emerald-800'
+                            : 'bg-amber-950/60 text-amber-400 border border-amber-800'
+                        }`}
+                      >
+                        {report.status === 'reviewed' || report.status === 'exported'
+                          ? 'Signed Off'
+                          : 'Pending Review'}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
+                      {report.generated_at.split('T')[0]}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/reports/${report.report_id}`}
+                          className="px-3 py-1 rounded-lg text-[11px] font-bold bg-[#162338] text-slate-200 border border-[#1E2E48] hover:border-[#38BDF8] hover:text-white transition"
+                        >
+                          View
+                        </Link>
+                        <a
+                          href={`http://127.0.0.1:8000/report/${report.report_id}?download=true`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-[#162338] transition"
+                          title="Download HTML"
+                        >
+                          <Download size={14} />
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

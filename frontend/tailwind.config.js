@@ -8,54 +8,40 @@ export default {
   theme: {
     extend: {
       colors: {
+        navy: {
+          950: '#07111F',
+          900: '#0B1424',
+          850: '#101B2D',
+          800: '#162338',
+          700: '#1E2E48',
+          600: '#2A3F60',
+          500: '#3B537E',
+        },
         charcoal: {
-          950: '#0B0D11',
-          900: '#111318',
-          850: '#181A1F',
-          800: '#22252B',
-          700: '#32363F',
+          950: '#06080C',
+          900: '#0B0E14',
+          850: '#11151D',
+          800: '#181D26',
+          700: '#222834',
         },
-        warm: {
-          50: '#FAF9F7',
-          100: '#F7F7F5',
-          200: '#EFECE6',
-          300: '#E5E2DA',
-          peach: '#FCF4EF',
-          softPeach: '#F6D7C3',
-          beige: '#F3E6DC',
+        tech: {
+          blue: '#2563EB',
+          sky: '#0EA5E9',
+          cyan: '#22D3EE',
+          glow: '#38BDF8',
         },
-        orange: {
-          primary: '#E8752F',
-          soft: '#F4A261',
-          dark: '#C85A20',
-          50: '#FCF4EF',
-          100: '#FAECE0',
-          200: '#F6D7C3',
-          500: '#E8752F',
-          600: '#C85A20',
-        },
-        text: {
-          primary: '#17191D',
-          secondary: '#5F6368',
-          muted: '#8A8F98',
-        },
-        medical: {
-          50: '#F0F7FF',
-          100: '#E0EFFF',
-          500: '#3B82F6',
-          600: '#2563EB',
-          700: '#1D4ED8',
-        },
-        cyan: {
-          muted: '#0891B2',
-          accent: '#67C7D4',
+        clinical: {
+          orange: '#F97316',
+          softOrange: '#FB923C',
+          lightOrange: '#FDBA74',
+          peach: '#FFEDD5',
         },
         grade: {
-          0: '#16A34A',
-          1: '#D97706',
-          2: '#E8752F',
-          3: '#DC2626',
-          4: '#9333EA',
+          0: '#10B981',
+          1: '#F59E0B',
+          2: '#F97316',
+          3: '#EF4444',
+          4: '#A855F7',
         }
       },
       fontFamily: {
@@ -63,18 +49,25 @@ export default {
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
       boxShadow: {
-        'warm-xs': '0 1px 2px rgba(17, 19, 24, 0.04)',
-        'warm-sm': '0 2px 8px rgba(17, 19, 24, 0.05)',
-        'warm-md': '0 4px 20px -2px rgba(17, 19, 24, 0.06)',
-        'dark-card': '0 8px 32px 0 rgba(0, 0, 0, 0.4)',
+        'dark-sm': '0 2px 8px 0 rgba(0, 0, 0, 0.3)',
+        'dark-md': '0 4px 20px -2px rgba(0, 0, 0, 0.45)',
+        'dark-lg': '0 10px 30px -4px rgba(0, 0, 0, 0.6)',
+        'glow-blue': '0 0 20px -3px rgba(37, 99, 235, 0.35)',
+        'glow-cyan': '0 0 20px -3px rgba(34, 211, 238, 0.35)',
+        'glow-orange': '0 0 20px -3px rgba(249, 115, 22, 0.35)',
       },
       animation: {
         'scan': 'scan 3s ease-in-out infinite alternate',
+        'pulse-subtle': 'pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
       },
       keyframes: {
         scan: {
           '0%': { top: '0%' },
           '100%': { top: '100%' },
+        },
+        'pulse-subtle': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0.6' },
         }
       }
     },

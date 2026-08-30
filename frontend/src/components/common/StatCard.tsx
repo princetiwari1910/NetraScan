@@ -14,32 +14,33 @@ interface StatCardProps {
   };
   accentColor?: 'blue' | 'cyan' | 'teal' | 'orange' | 'purple' | 'red';
   onClick?: () => void;
+  variant?: 'dark' | 'light';
 }
 
 const ACCENT_STYLES = {
   orange: {
-    iconBg: 'bg-[#FCF4EF] text-[#E8752F] border border-[#F6D7C3]',
-    border: 'hover:border-[#E8752F]',
+    iconBg: 'bg-[#F97316]/15 text-[#FB923C] border border-[#F97316]/30',
+    border: 'hover:border-[#F97316]',
   },
   blue: {
-    iconBg: 'bg-[#F0F7FF] text-[#2563EB] border border-[#DBEAFE]',
-    border: 'hover:border-[#2563EB]',
+    iconBg: 'bg-[#2563EB]/15 text-[#38BDF8] border border-[#2563EB]/30',
+    border: 'hover:border-[#38BDF8]',
   },
   cyan: {
-    iconBg: 'bg-[#F0FDFA] text-[#0891B2] border border-[#CCFBF1]',
-    border: 'hover:border-[#0891B2]',
+    iconBg: 'bg-[#0EA5E9]/15 text-[#22D3EE] border border-[#0EA5E9]/30',
+    border: 'hover:border-[#22D3EE]',
   },
   teal: {
-    iconBg: 'bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7]',
-    border: 'hover:border-[#16A34A]',
+    iconBg: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
+    border: 'hover:border-emerald-400',
   },
   purple: {
-    iconBg: 'bg-[#FAF5FF] text-[#9333EA] border border-[#F3E8FF]',
-    border: 'hover:border-[#9333EA]',
+    iconBg: 'bg-purple-500/15 text-purple-400 border border-purple-500/30',
+    border: 'hover:border-purple-400',
   },
   red: {
-    iconBg: 'bg-[#FEF2F2] text-[#DC2626] border border-[#FEE2E2]',
-    border: 'hover:border-[#DC2626]',
+    iconBg: 'bg-red-500/15 text-red-400 border border-red-500/30',
+    border: 'hover:border-red-400',
   },
 };
 
@@ -49,22 +50,30 @@ export const StatCard: React.FC<StatCardProps> = ({
   subtitle,
   icon: Icon,
   trend,
-  accentColor = 'orange',
+  accentColor = 'blue',
   onClick,
+  variant = 'dark',
 }) => {
-  const styles = ACCENT_STYLES[accentColor] || ACCENT_STYLES.orange;
+  const styles = ACCENT_STYLES[accentColor] || ACCENT_STYLES.blue;
+  const isDark = variant === 'dark';
 
   return (
     <motion.div
       whileHover={{ y: -2 }}
       transition={{ duration: 0.15 }}
       onClick={onClick}
-      className={`bg-white border border-[#EAE9E4] rounded-2xl p-5 shadow-warm-xs transition-all duration-200 ${styles.border} ${
-        onClick ? 'cursor-pointer hover:shadow-warm-sm' : ''
-      }`}
+      className={`rounded-2xl p-5 transition-all duration-200 ${
+        isDark
+          ? 'bg-[#101B2D] border border-[#1E2E48] text-white shadow-dark-sm'
+          : 'bg-white border border-[#E2E8F0] text-slate-900 shadow-sm'
+      } ${styles.border} ${onClick ? 'cursor-pointer hover:shadow-dark-md' : ''}`}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold text-[#5F6368] uppercase tracking-wider">
+        <span
+          className={`text-[11px] font-bold uppercase tracking-wider ${
+            isDark ? 'text-slate-400' : 'text-slate-500'
+          }`}
+        >
           {title}
         </span>
         <div className={`p-2.5 rounded-xl ${styles.iconBg}`}>
@@ -73,30 +82,48 @@ export const StatCard: React.FC<StatCardProps> = ({
       </div>
 
       <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-2xl sm:text-3xl font-black text-[#17191D] tracking-tight">
+        <span
+          className={`text-2xl sm:text-3xl font-black tracking-tight ${
+            isDark ? 'text-white' : 'text-slate-900'
+          }`}
+        >
           {value}
         </span>
         {subtitle && (
-          <span className="text-xs text-[#8A8F98] font-medium">
+          <span
+            className={`text-xs font-medium font-mono ${
+              isDark ? 'text-slate-400' : 'text-slate-500'
+            }`}
+          >
             {subtitle}
           </span>
         )}
       </div>
 
       {trend && (
-        <div className="mt-3 pt-3 border-t border-[#F0EFEA] flex items-center justify-between text-xs">
+        <div
+          className={`mt-3 pt-3 border-t flex items-center justify-between text-xs ${
+            isDark ? 'border-[#1E2E48]' : 'border-slate-100'
+          }`}
+        >
           <div
             className={`inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-md ${
               trend.isPositive
-                ? 'text-emerald-800 bg-emerald-50 border border-emerald-200'
-                : 'text-[#C85A20] bg-[#FCF4EF] border border-[#F6D7C3]'
+                ? 'text-emerald-400 bg-emerald-950/50 border border-emerald-800/50'
+                : 'text-[#FB923C] bg-[#F97316]/15 border border-[#F97316]/30'
             }`}
           >
             {trend.isPositive ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
             <span>{trend.value}</span>
           </div>
           {trend.label && (
-            <span className="text-[#8A8F98] font-medium text-[11px]">{trend.label}</span>
+            <span
+              className={`font-medium text-[11px] ${
+                isDark ? 'text-slate-400' : 'text-slate-500'
+              }`}
+            >
+              {trend.label}
+            </span>
           )}
         </div>
       )}

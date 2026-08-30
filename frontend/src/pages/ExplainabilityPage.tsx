@@ -1,98 +1,114 @@
 import React, { useState } from 'react';
 import {
-  BrainCircuit,
-  Sparkles,
-  Info,
+  Brain,
   Layers,
+  Sparkles,
   Cpu,
-  Eye,
+  Info,
+  Sliders,
   CheckCircle2,
-  ArrowRight,
-  ShieldCheck,
-  Zap,
+  Crosshair,
+  Maximize2,
   Activity,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw
 } from 'lucide-react';
-import { PageHeader } from '../components/common/PageHeader';
-import { HeatmapViewer } from '../components/common/HeatmapViewer';
+import { motion } from 'framer-motion';
 import { DEMO_FUNDUS_SVG, DEMO_HEATMAP_SVG } from '../services/mockData';
+import { HeatmapViewer } from '../components/common/HeatmapViewer';
+
+interface BiomarkerRegion {
+  id: string;
+  title: string;
+  location: string;
+  description: string;
+  contribution: string;
+  icdrSignificance: string;
+}
+
+const REGIONS: BiomarkerRegion[] = [
+  {
+    id: 'ma',
+    title: 'Microaneurysm Clusters',
+    location: 'Superior-temporal arcade (parafoveal network)',
+    description:
+      'Focal saccular outpouchings of retinal capillaries resulting from pericyte loss and vessel wall weakening.',
+    contribution: 'High (42% Gradient Weight)',
+    icdrSignificance: 'Defines transition from Grade 0 (No DR) to Grade 1/2 NPDR.',
+  },
+  {
+    id: 'he',
+    title: 'Hard Lipid Exudates',
+    location: 'Macular boundary (superior pole)',
+    description:
+      'Waxy lipoprotein precipitates leaking from chronically damaged endothelial tight junctions.',
+    contribution: 'Moderate (28% Gradient Weight)',
+    icdrSignificance: 'Signals chronic vascular hyperpermeability and risk of diabetic macular edema (DME).',
+  },
+  {
+    id: 'bh',
+    title: 'Blot & Dot Intraretinal Hemorrhages',
+    location: 'Deep middle layers of the inner nuclear retina',
+    description:
+      'Ruptured capillary microaneurysms within the compact middle retinal layer forming discrete dot/blot lesions.',
+    contribution: 'Very High (30% Gradient Weight)',
+    icdrSignificance: 'Key criteria for Moderate (Grade 2) vs Severe (Grade 3) classification (4-2-1 rule).',
+  },
+];
 
 export const ExplainabilityPage: React.FC = () => {
   const [selectedRegion, setSelectedRegion] = useState<string>('ma');
 
-  const REGIONS = [
-    {
-      id: 'ma',
-      title: '1. Microaneurysm Clusters',
-      contribution: '+42% Activation Weight',
-      location: 'Parafoveal Capillary Network',
-      description: 'Localized focal dilatations in deep capillary beds. High gradient magnitude in final convolutional layer indicates primary trigger for diabetic retinopathy staging.',
-      icdrSignificance: 'Mandatory biomarker for Grade 1 (Mild) & Grade 2 (Moderate NPDR).',
-    },
-    {
-      id: 'he',
-      title: '2. Dot & Blot Intraretinal Hemorrhages',
-      contribution: '+31% Activation Weight',
-      location: 'Inferior & Temporal Quad',
-      description: 'Microvascular ruptures confined to inner nuclear and outer plexiform retinal layers. Gradient activation confirms multi-quadrant involvement.',
-      icdrSignificance: 'Distinguishes Moderate NPDR from Mild NPDR under ICDR criteria.',
-    },
-    {
-      id: 'ex',
-      title: '3. Hard Lipid Exudates',
-      contribution: '+19% Activation Weight',
-      location: 'Superior Temporal Vascular Arcade',
-      description: 'Lipoprotein precipitates extravasating from chronically incompetent retinal capillaries with surrounding retinal edema.',
-      icdrSignificance: 'Key risk biomarker requiring close macular surveillance.',
-    },
-  ];
-
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Explainable AI & Grad-CAM Architecture"
-        subtitle="Transparent neural decision-support through Gradient-weighted Class Activation Mapping (Grad-CAM)."
-        badge={
-          <span className="text-xs font-semibold bg-[#FCF4EF] text-[#C85A20] border border-[#F6D7C3] px-3 py-1 rounded-full uppercase tracking-wider">
-            Biomarker Attribution
-          </span>
-        }
-      />
-
-      {/* Visual Explanation Timeline */}
-      <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-[#F0EFEA]">
-          <h3 className="text-sm font-bold text-[#17191D] flex items-center gap-2">
-            <Activity size={16} className="text-[#E8752F]" />
-            <span>Neural Inference & Explainability Timeline</span>
-          </h3>
-          <span className="text-[11px] font-bold text-[#8A8F98] uppercase tracking-wider font-mono">
-            Deterministic Pipeline
-          </span>
+    <div className="space-y-6 text-slate-100">
+      {/* 1. Header */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+              <Brain size={22} className="text-[#38BDF8]" />
+              Explainable AI (Grad-CAM) Visual Attribution
+            </h1>
+          </div>
+          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            Visualizing deep convolutional feature activations from MATLAB ResNet-18 (`res5b_relu` / `layer4[-1]`) to explain what the AI predicted, why it predicted it, and where pathology was localized.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 relative">
+        <span className="text-xs font-mono font-bold bg-[#2563EB]/15 text-[#38BDF8] border border-[#2563EB]/30 px-3 py-1.5 rounded-xl self-start sm:self-auto">
+          Target: res5b_relu
+        </span>
+      </div>
+
+      {/* 2. Step-by-Step Decision Pipeline */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-4">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 font-mono">
+          Convolutional Attribution Pipeline
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           {[
-            { step: '01', title: 'Fundus Image', desc: 'Normalized 3-channel optical RGB fundus photograph.' },
-            { step: '02', title: 'Feature Extraction', desc: 'MATLAB ResNet-18 multi-scale residual feature maps.' },
-            { step: '03', title: 'Pathological Localization', desc: 'Grad-CAM gradient backprop onto res5b_relu layer.' },
-            { step: '04', title: 'Model Decision', desc: 'Global average pooled softmax scoring with 0.35 referral threshold.' },
-            { step: '05', title: 'ICDR Grade Output', desc: 'Moderate NPDR (Grade 2) with visual attribution map.' },
+            { step: '01', title: 'Fundus Ingestion', desc: 'Normalized 224×224 optical RGB retinal photograph.' },
+            { step: '02', title: 'Feature Extraction', desc: 'ResNet-18 multi-scale residual feature maps.' },
+            { step: '03', title: 'Gradient Backprop', desc: 'Backpropagated gradients onto res5b_relu layer.' },
+            { step: '04', title: 'Global Pool & ReLU', desc: 'Weighted activation maps rectified for positive influence.' },
+            { step: '05', title: 'Attribution Map', desc: 'Moderate NPDR (Grade 2) with highlighted pathology.' },
           ].map((item, idx) => (
             <div
               key={idx}
-              className="p-3.5 rounded-xl bg-[#FAF9F7] border border-[#EAE9E4] flex flex-col justify-between relative group hover:border-[#E8752F] transition"
+              className="p-3.5 rounded-xl bg-[#162338] border border-[#1E2E48] hover:border-[#38BDF8] transition flex flex-col justify-between"
             >
               <div>
-                <span className="text-xs font-black text-[#E8752F]">{item.step}</span>
-                <h4 className="text-xs font-bold text-[#17191D] mt-1">{item.title}</h4>
-                <p className="text-[11px] text-[#5F6368] mt-1 leading-snug">{item.desc}</p>
+                <span className="text-xs font-black font-mono text-[#38BDF8]">{item.step}</span>
+                <h4 className="text-xs font-bold text-white mt-1">{item.title}</h4>
+                <p className="text-[11px] text-slate-400 mt-1 leading-snug">{item.desc}</p>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Interactive Demonstration Section with Dark Optical Viewer */}
+      {/* 3. Interactive Retinal Workstation with Dark Optical Canvas */}
       <HeatmapViewer
         originalImage={DEMO_FUNDUS_SVG}
         heatmapImage={DEMO_HEATMAP_SVG}
@@ -102,21 +118,22 @@ export const ExplainabilityPage: React.FC = () => {
           'Microaneurysms detected in parafoveal capillary network.',
           'Dot-and-blot intraretinal hemorrhages contributing to Grade 2 classification.',
           'Hard lipid exudates identified in superior temporal vascular arcade.',
+          'Referral indicated under 0.35 clinical probability threshold.',
         ]}
       />
 
-      {/* "Why did the model predict Grade 2?" Breakdown Section */}
-      <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#F0EFEA]">
+      {/* 4. "Why did the model predict Grade 2?" Breakdown Section */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#1E2E48]">
           <div>
-            <h3 className="text-base font-bold text-[#17191D]">
+            <h3 className="text-base font-bold text-white">
               Why did the model predict Grade 2 (Moderate NPDR)?
             </h3>
-            <p className="text-xs text-[#5F6368] mt-0.5">
+            <p className="text-xs text-slate-400 mt-0.5">
               Decomposition of convolutional attention hotspots into specific pathological biomarkers
             </p>
           </div>
-          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-[#FCF4EF] text-[#C85A20] border border-[#F6D7C3]">
+          <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-[#F97316]/20 text-[#FB923C] border border-[#F97316]/40">
             Grade 2: Moderate NPDR (92.4% Confidence)
           </span>
         </div>
@@ -128,23 +145,23 @@ export const ExplainabilityPage: React.FC = () => {
               onClick={() => setSelectedRegion(reg.id)}
               className={`p-5 rounded-2xl border transition-all cursor-pointer ${
                 selectedRegion === reg.id
-                  ? 'bg-[#FCF4EF] border-[#E8752F] shadow-warm-xs ring-2 ring-[#E8752F]/20'
-                  : 'bg-[#FAF9F7] border-[#EAE9E4] hover:border-[#F6D7C3]'
+                  ? 'bg-[#162338] border-[#38BDF8] shadow-glow-cyan'
+                  : 'bg-[#162338]/60 border-[#1E2E48] hover:border-slate-500'
               }`}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-[#17191D]">{reg.title}</span>
-                <span className="text-[10px] font-bold text-[#C85A20] bg-[#FAECE0] px-2 py-0.5 rounded-full">
+                <span className="text-xs font-bold text-white">{reg.title}</span>
+                <span className="text-[10px] font-mono font-bold text-[#38BDF8] bg-[#0EA5E9]/15 px-2 py-0.5 rounded-full border border-[#0EA5E9]/30">
                   {reg.contribution}
                 </span>
               </div>
-              <span className="text-[11px] font-medium text-[#5F6368] block mt-1">
+              <span className="text-[11px] font-medium text-slate-400 block mt-1">
                 Location: {reg.location}
               </span>
-              <p className="text-xs text-[#5F6368] mt-2 leading-relaxed">
+              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
                 {reg.description}
               </p>
-              <div className="mt-3 pt-2.5 border-t border-[#EAE9E4] text-[11px] font-semibold text-[#17191D]">
+              <div className="mt-3 pt-2.5 border-t border-[#1E2E48] text-[11px] font-semibold text-[#38BDF8]">
                 {reg.icdrSignificance}
               </div>
             </div>
@@ -152,54 +169,37 @@ export const ExplainabilityPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Scientific & Clinical Methodology Breakdown */}
+      {/* 5. Scientific & Mathematical Attribution Formula */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-[#FCF4EF] text-[#E8752F] border border-[#F6D7C3] flex items-center justify-center">
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-[#162338] text-[#38BDF8] border border-[#1E2E48] flex items-center justify-center">
             <Cpu size={20} />
           </div>
-          <h3 className="text-sm font-bold text-[#17191D]">
-            1. Target Layer Gradients
-          </h3>
-          <p className="text-xs text-[#5F6368] leading-relaxed">
-            Gradients of the predicted ICDR class score $y^c$ are computed with respect to the feature map activations $A^k$ of ResNet-18's final residual block (`res5b_relu` / `layer4[-1]`).
+          <h3 className="text-sm font-bold text-white">1. Target Layer Gradients</h3>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Gradients of the predicted ICDR class score $y^c$ are computed with respect to the feature map activations $A^k$ of ResNet-18&apos;s final residual block (`res5b_relu` / `layer4[-1]`).
           </p>
         </div>
 
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-[#F0FDFA] text-[#0891B2] border border-[#CCFBF1] flex items-center justify-center">
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-[#162338] text-[#38BDF8] border border-[#1E2E48] flex items-center justify-center">
             <Layers size={20} />
           </div>
-          <h3 className="text-sm font-bold text-[#17191D]">
-            2. Global Average Pooling
-          </h3>
-          <p className="text-xs text-[#5F6368] leading-relaxed">
-            Importance weights $\alpha_k^c$ are obtained via spatial global average pooling over pixels, capturing the importance of each feature map $k$ for class $c$.
+          <h3 className="text-sm font-bold text-white">2. Global Average Pooling</h3>
+          <p className="text-xs text-slate-400 leading-relaxed font-mono">
+            {"Importance weights α_k^c quantify the pooled contribution of each convolutional channel A^k to the target grade."}
           </p>
         </div>
 
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs space-y-3">
-          <div className="w-10 h-10 rounded-xl bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7] flex items-center justify-center">
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-3">
+          <div className="w-10 h-10 rounded-xl bg-[#162338] text-[#38BDF8] border border-[#1E2E48] flex items-center justify-center">
             <Sparkles size={20} />
           </div>
-          <h3 className="text-sm font-bold text-[#17191D]">
-            3. ReLU Rectified Heatmap
-          </h3>
-          <p className="text-xs text-[#5F6368] leading-relaxed">
-            A weighted combination of forward activation maps is passed through a ReLU non-linearity to only preserve features that have a positive influence on the target DR stage.
+          <h3 className="text-sm font-bold text-white">3. ReLU Feature Rectification</h3>
+          <p className="text-xs text-slate-400 leading-relaxed font-mono">
+            {"L_Grad-CAM = ReLU(Σ α_k^c * A^k) isolates features with positive pathological diagnostic influence."}
           </p>
         </div>
-      </div>
-
-      {/* Clinical Trust & Regulatory Disclaimer Notice */}
-      <div className="bg-[#FCF4EF] border border-[#F6D7C3] rounded-2xl p-5 space-y-2">
-        <div className="flex items-center gap-2 text-[#C85A20] text-xs font-bold uppercase tracking-wider">
-          <ShieldCheck size={16} className="text-[#E8752F]" />
-          <span>Clinical Trust Protocol • Decision Support Mandate</span>
-        </div>
-        <p className="text-xs text-[#5F6368] leading-relaxed">
-          <strong>Model explanation ≠ clinical diagnosis.</strong> Highlighted regions indicate retinal areas that contributed most significantly to the neural network's decision. They do not substitute for comprehensive ophthalmoscopic examination. Clinicians must correlate Grad-CAM hotspots with direct examination findings and patient medical history.
-        </p>
       </div>
     </div>
   );

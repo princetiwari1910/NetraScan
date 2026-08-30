@@ -14,6 +14,9 @@ export interface HealthResponse {
   mode: 'live' | 'mock';
   device: string;
   num_classes: number;
+  model?: string;
+  input_size?: string;
+  target_layer?: string;
 }
 
 export interface AnalysisSuccessResponse {
@@ -76,9 +79,9 @@ export interface ScreeningSession {
   filename: string;
   file_size_kb: number;
   dimensions: string;
-  prediction: AnalysisSuccessResponse | null;
+  prediction: AnalysisSuccessResponse;
   quality: QualityMetric;
-  review: ClinicalReview;
+  review?: ClinicalReview;
   report_id?: string;
 }
 
@@ -103,8 +106,9 @@ export interface ModelMetrics {
   specificity: number;
   precision: number;
   f1_score: number;
-  qwk: number; // Quadratic Weighted Kappa
+  qwk: number;
   auc_roc: number;
+  is_demo?: boolean;
   confusion_matrix: number[][];
   class_metrics: Array<{
     grade: ICDRGrade;
@@ -114,7 +118,22 @@ export interface ModelMetrics {
     f1: number;
     support: number;
   }>;
-  is_demo?: boolean;
+}
+
+export interface SystemComponentHealth {
+  name: string;
+  status: 'operational' | 'degraded' | 'offline' | 'ready';
+  latency: string;
+  description: string;
+}
+
+export interface DiagnosticLog {
+  id: string;
+  timestamp: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
+  endpoint: string;
+  message: string;
+  latency_ms: number;
 }
 
 export interface SystemHealthData {
@@ -123,18 +142,13 @@ export interface SystemHealthData {
   average_latency_ms: number;
   requests_today: number;
   error_rate: number;
-  components: Array<{
-    name: string;
-    status: 'operational' | 'ready' | 'warning' | 'unavailable';
-    latency: string;
-    description: string;
-  }>;
-  recent_logs: Array<{
-    id: string;
-    timestamp: string;
-    level: 'INFO' | 'WARN' | 'ERROR' | 'SUCCESS';
-    endpoint: string;
-    message: string;
-    latency_ms: number;
-  }>;
+  components: SystemComponentHealth[];
+  recent_logs: DiagnosticLog[];
+}
+
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  title: string;
+  message: string;
 }

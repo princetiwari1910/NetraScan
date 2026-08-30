@@ -509,3 +509,29 @@ export const MOCK_SYSTEM_HEALTH: SystemHealthData = {
     { id: 'LOG-8808', timestamp: '10:15:30', level: 'SUCCESS', endpoint: 'POST /analyze', message: 'Triage complete: Grade 0 (No DR)', latency_ms: 340 },
   ],
 };
+
+export const MOCK_DASHBOARD_STATS = {
+  total_screenings: 1842,
+  referable_rate_pct: 38.4,
+  avg_confidence_pct: 92.4,
+  pending_reviews: 4,
+};
+
+export const MOCK_TRIAGE_TRENDS = [
+  { date: 'Aug 24', total: 42, referable: 14 },
+  { date: 'Aug 25', total: 58, referable: 21 },
+  { date: 'Aug 26', total: 64, referable: 24 },
+  { date: 'Aug 27', total: 51, referable: 19 },
+  { date: 'Aug 28', total: 72, referable: 28 },
+  { date: 'Aug 29', total: 85, referable: 33 },
+  { date: 'Aug 30', total: 94, referable: 36 },
+];
+
+export const MOCK_SEVERITY_DISTRIBUTION = [
+  { label: 'Grade 0 (No DR)', count: 820, percentage: 44.5, color: '#10B981' },
+  { label: 'Grade 1 (Mild)', count: 320, percentage: 17.4, color: '#F59E0B' },
+  { label: 'Grade 2 (Moderate)', count: 410, percentage: 22.3, color: '#F97316' },
+  { label: 'Grade 3 (Severe)', count: 180, percentage: 9.8, color: '#EF4444' },
+  { label: 'Grade 4 (PDR)', count: 112, percentage: 6.0, color: '#A855F7' },
+];
+

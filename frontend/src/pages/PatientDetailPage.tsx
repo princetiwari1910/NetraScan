@@ -10,6 +10,8 @@ import {
   PlusCircle,
   TrendingUp,
   AlertTriangle,
+  Eye,
+  CheckCircle2
 } from 'lucide-react';
 import {
   LineChart,
@@ -21,10 +23,8 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
-import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
-import { ICDRGrade } from '../types';
 
 export const PatientDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -39,10 +39,8 @@ export const PatientDetailPage: React.FC = () => {
       <EmptyState
         title="Patient Not Found"
         description={`No registered patient profile found for ID ${id}.`}
-        action={{
-          label: 'Back to Directory',
-          onClick: () => navigate('/patients'),
-        }}
+        actionLabel="Back to Directory"
+        onAction={() => navigate('/patients')}
       />
     );
   }
@@ -57,188 +55,177 @@ export const PatientDetailPage: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
+    <div className="space-y-6 text-slate-100">
+      {/* 1. Top Navigation & Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-[#1E2E48]">
+        <div className="flex items-center gap-3">
+          <Link
+            to="/patients"
+            className="p-2 rounded-xl bg-[#101B2D] border border-[#1E2E48] hover:border-[#38BDF8] text-slate-300 hover:text-white transition"
+          >
+            <ArrowLeft size={16} />
+          </Link>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h1 className="text-xl sm:text-2xl font-black text-white">{patient.name}</h1>
+              <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-[#101B2D] border border-[#1E2E48] text-[#38BDF8]">
+                {patient.patient_id}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {patient.age} yrs • {patient.gender} • {patient.diabetes_type || 'Type 2 Diabetes'}
+            </p>
+          </div>
+        </div>
+
         <Link
-          to="/patients"
-          className="text-xs font-semibold text-[#5F6368] hover:text-[#17191D] flex items-center gap-1"
+          to="/screening"
+          className="px-4 py-2 bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] hover:from-[#1D4ED8] hover:to-[#0284C7] text-white text-xs font-bold rounded-xl shadow-glow-blue flex items-center gap-2 transition"
         >
-          <ArrowLeft size={14} />
-          <span>Back to Patient Directory</span>
+          <PlusCircle size={15} />
+          <span>New Screening</span>
         </Link>
       </div>
 
-      <PageHeader
-        title={patient.name}
-        subtitle={`Patient ID: ${patient.patient_id} • Age ${patient.age} yrs • ${patient.gender}`}
-        badge={
-          <span className="text-xs font-semibold bg-[#FCF4EF] text-[#C85A20] border border-[#F6D7C3] px-3 py-1 rounded-full uppercase tracking-wider">
-            {patient.diabetes_type}
+      {/* 2. Demographic & Medical Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-5 shadow-dark-sm space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Diabetes Clinical Profile
           </span>
-        }
-        actions={
-          <Link
-            to="/screening"
-            className="px-4 py-2 bg-[#E8752F] hover:bg-[#C85A20] text-white text-xs font-bold rounded-xl shadow-warm-xs flex items-center gap-2 transition"
-          >
-            <PlusCircle size={14} />
-            <span>Screen This Patient</span>
-          </Link>
-        }
-      />
-
-      {/* Demographics Overview Card */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-5 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Examined Eye</span>
-          <p className="text-lg font-bold text-[#17191D] mt-1">{patient.examined_eye}</p>
-        </div>
-
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-5 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Diabetes Duration</span>
-          <p className="text-lg font-bold text-[#17191D] mt-1">
-            {patient.duration_years ? `${patient.duration_years} Years` : 'Not Specified'}
+          <div className="text-sm font-bold text-white">
+            {patient.diabetes_type || 'Type 2 Diabetes'}
+          </div>
+          <p className="text-xs text-slate-400">
+            Duration: <strong className="text-white font-mono">{patient.duration_years || 10} years</strong>
           </p>
         </div>
 
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-5 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Screening Sessions</span>
-          <p className="text-lg font-black text-[#E8752F] mt-1">{patientScreenings.length} Recorded</p>
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-5 shadow-dark-sm space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Total Fundus Scans
+          </span>
+          <div className="text-sm font-bold font-mono text-[#38BDF8]">
+            {patientScreenings.length} Recorded Sessions
+          </div>
+          <p className="text-xs text-slate-400">
+            Last Exam:{' '}
+            <strong className="text-white">
+              {patientScreenings[0]?.timestamp.split(' ')[0] || 'Today'}
+            </strong>
+          </p>
         </div>
 
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-5 shadow-warm-xs">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-[#5F6368]">Clinical Status</span>
-          <p className="text-lg font-bold text-[#17191D] mt-1 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            Active Follow-up
+        <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-5 shadow-dark-sm space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">
+            Triage & Risk Assessment
+          </span>
+          <div>
+            <StatusBadge grade={patientScreenings[0]?.prediction?.dr_grade ?? 2} />
+          </div>
+          <p className="text-xs text-[#FB923C] font-semibold flex items-center gap-1 font-mono">
+            <AlertTriangle size={12} /> Actionable follow-up required
           </p>
         </div>
       </div>
 
-      {/* Longitudinal Progression Chart */}
-      <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-[#F0EFEA]">
+      {/* 3. Longitudinal Retinopathy Progression Chart */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#1E2E48]">
           <div>
-            <h3 className="text-base font-bold text-[#17191D]">
-              Longitudinal DR Trajectory & Glycemic Correlation
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <TrendingUp size={18} className="text-[#38BDF8]" />
+              Longitudinal Disease Staging Trajectory
             </h3>
-            <p className="text-xs text-[#5F6368] mt-0.5">
-              Historical ICDR progression charted against HbA1c plasma levels over 24 months
+            <p className="text-xs text-slate-400 mt-0.5">
+              Historical diabetic retinopathy grading trajectory plotted alongside glycemic control (HbA1c %)
             </p>
           </div>
-          <div className="flex items-center gap-4 text-xs font-semibold">
-            <span className="flex items-center gap-1.5 text-[#E8752F]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#E8752F]" />
-              ICDR Grade (0-4)
-            </span>
-            <span className="flex items-center gap-1.5 text-[#D97706]">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#D97706]" />
-              HbA1c (%)
-            </span>
-          </div>
+          <span className="text-xs font-mono text-slate-400">24-Month Clinical Window</span>
         </div>
 
-        <div className="h-64 sm:h-72 w-full">
+        <div className="h-60 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={progressionData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0EFEA" vertical={false} />
-              <XAxis dataKey="date" stroke="#8A8F98" fontSize={11} tickLine={false} axisLine={{ stroke: '#EAE9E4' }} />
-              <YAxis stroke="#8A8F98" fontSize={11} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E2E48" vertical={false} />
+              <XAxis dataKey="date" stroke="#64748B" fontSize={11} />
+              <YAxis
+                domain={[0, 4]}
+                ticks={[0, 1, 2, 3, 4]}
+                stroke="#64748B"
+                fontSize={11}
+                tickFormatter={(val) => `Grade ${val}`}
+              />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #EAE9E4',
-                  borderRadius: '10px',
-                  boxShadow: '0 4px 12px rgba(17, 19, 24, 0.05)',
-                  color: '#17191D',
+                  backgroundColor: '#0B1424',
+                  border: '1px solid #1E2E48',
+                  borderRadius: '12px',
+                  color: '#FFFFFF',
                   fontSize: '12px',
                 }}
               />
               <Line
                 type="monotone"
                 dataKey="grade"
-                stroke="#E8752F"
+                stroke="#F97316"
                 strokeWidth={3}
-                dot={{ r: 5, fill: '#E8752F', strokeWidth: 2, stroke: '#FFFFFF' }}
+                dot={{ r: 5, fill: '#F97316' }}
                 name="ICDR Grade"
-              />
-              <Line
-                type="monotone"
-                dataKey="hba1c"
-                stroke="#D97706"
-                strokeWidth={2.5}
-                strokeDasharray="4 4"
-                dot={{ r: 4, fill: '#D97706' }}
-                name="HbA1c (%)"
               />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Screenings Timeline Table */}
-      <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs space-y-4">
-        <h3 className="text-base font-bold text-[#17191D] pb-3 border-b border-[#F0EFEA]">
-          Retinal Screening Timeline
+      {/* 4. Past Examination History List */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-4">
+        <h3 className="text-base font-bold text-white flex items-center gap-2">
+          <Clock size={18} className="text-[#38BDF8]" />
+          Historical Screening Examinations
         </h3>
 
-        {patientScreenings.length === 0 ? (
-          <p className="text-xs text-[#5F6368]">No screenings recorded yet for this patient.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-[#EAE9E4] bg-[#FAF9F7] text-[#5F6368] uppercase tracking-wider text-[11px] font-bold">
-                  <th className="py-2.5 pl-3">Session ID</th>
-                  <th className="py-2.5">Date & Time</th>
-                  <th className="py-2.5">AI Staging</th>
-                  <th className="py-2.5">Confidence</th>
-                  <th className="py-2.5">Referral</th>
-                  <th className="py-2.5">Review Status</th>
-                  <th className="py-2.5 pr-3 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F0EFEA]">
-                {patientScreenings.map((session) => (
-                  <tr key={session.id} className="hover:bg-[#FAF9F7] transition-colors">
-                    <td className="py-3.5 pl-3 font-semibold text-[#E8752F]">{session.id}</td>
-                    <td className="py-3.5 text-[#5F6368]">{session.timestamp}</td>
-                    <td className="py-3.5">
-                      <StatusBadge grade={session.prediction?.dr_grade ?? 0} size="sm" />
-                    </td>
-                    <td className="py-3.5 font-bold text-[#17191D]">
-                      {((session.prediction?.confidence ?? 0.9) * 100).toFixed(1)}%
-                    </td>
-                    <td className="py-3.5">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-                          session.prediction?.referable
-                            ? 'bg-[#FCF4EF] text-[#C85A20] border-[#F6D7C3]'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        }`}
-                      >
-                        {session.prediction?.referable ? 'Recommended' : 'Routine'}
-                      </span>
-                    </td>
-                    <td className="py-3.5">
-                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[#FAF9F7] border border-[#EAE9E4] text-[#17191D] capitalize">
-                        {session.review.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 pr-3 text-right">
-                      <Link
-                        to={`/screening/${session.id}`}
-                        className="px-3 py-1.5 bg-white hover:bg-[#FAF9F7] text-[#17191D] rounded-lg font-bold text-xs transition inline-block border border-[#EAE9E4] hover:border-[#E8752F] shadow-warm-xs"
-                      >
-                        View Full Session
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <div className="space-y-3">
+          {patientScreenings.map((screening) => (
+            <div
+              key={screening.id}
+              className="p-4 rounded-xl bg-[#162338] border border-[#1E2E48] flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-[#38BDF8] transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-black border border-[#1E2E48] shrink-0">
+                  <img
+                    src={screening.image_url}
+                    alt="Fundus Scan"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white">{screening.patient.examined_eye}</span>
+                    <span className="text-xs font-mono text-slate-400">{screening.id}</span>
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-2">
+                    <Calendar size={12} />
+                    <span>{screening.timestamp}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <StatusBadge grade={screening.prediction.dr_grade} />
+                <span className="text-xs font-mono font-bold text-white">
+                  {(screening.prediction.confidence * 100).toFixed(1)}%
+                </span>
+                <Link
+                  to={`/screening/${screening.id}`}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold bg-[#101B2D] border border-[#1E2E48] hover:border-[#38BDF8] text-slate-200 hover:text-white transition"
+                >
+                  Inspect Scan
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

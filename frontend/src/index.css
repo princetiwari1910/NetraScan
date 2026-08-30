@@ -4,28 +4,44 @@
 
 @layer base {
   body {
-    @apply bg-[#FAF9F7] text-[#17191D] font-sans antialiased;
+    @apply bg-[#07111F] text-slate-100 font-sans antialiased;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 
-  /* Custom scrollbar styling for warm clinical workstation */
+  /* Custom dark scrollbar styling */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #FAF9F7;
+    background: #0B1424;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #E5E2DA;
+    background: #1E2E48;
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #D4D0C5;
+    background: #2A3F60;
   }
+}
+
+/* Glassmorphism and dark cards */
+.glass-panel {
+  background: rgba(16, 27, 45, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(30, 46, 72, 0.8);
+}
+
+.glass-panel-glow {
+  background: rgba(16, 27, 45, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  box-shadow: 0 0 25px -5px rgba(14, 165, 233, 0.15);
 }
 
 /* Print formatting for clinical reports */

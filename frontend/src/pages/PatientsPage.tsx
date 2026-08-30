@@ -10,12 +10,12 @@ import {
   Clock,
   Calendar,
   AlertTriangle,
+  Eye,
+  FileText
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { EmptyState } from '../components/common/EmptyState';
-import { ICDRGrade } from '../types';
 
 export const PatientsPage: React.FC = () => {
   const { patients, screenings } = useApp();
@@ -54,6 +54,8 @@ export const PatientsPage: React.FC = () => {
         ? true
         : stageFilter === 'referable'
         ? latestGrade >= 2
+        : stageFilter === 'pending'
+        ? false
         : String(latestGrade) === stageFilter;
 
     const matchesGender =
@@ -63,156 +65,166 @@ export const PatientsPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Patient Directory"
-        subtitle="Manage enrolled diabetic patients, track longitudinal fundus screenings, and monitor retinopathy progression."
-        badge={
-          <span className="text-xs font-semibold bg-[#FCF4EF] text-[#C85A20] border border-[#F6D7C3] px-3 py-1 rounded-full uppercase tracking-wider">
-            {patients.length} Registered Patients
-          </span>
-        }
-        actions={
-          <Link
-            to="/screening"
-            className="px-4 py-2 bg-[#E8752F] hover:bg-[#C85A20] text-white text-xs font-bold rounded-xl shadow-warm-xs flex items-center gap-2 transition"
-          >
-            <PlusCircle size={14} />
-            <span>Screen New Patient</span>
-          </Link>
-        }
-      />
+    <div className="space-y-6 text-slate-100">
+      {/* 1. Header */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <Users size={22} className="text-[#38BDF8]" />
+            Patient Registry & Longitudinal Cohort
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Clinical management directory for screened diabetic patients and history records
+          </p>
+        </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white border border-[#EAE9E4] rounded-2xl p-4 shadow-warm-xs flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-80">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A8F98]" />
+        <Link
+          to="/screening"
+          className="px-5 py-2.5 bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] hover:from-[#1D4ED8] hover:to-[#0284C7] text-white text-xs font-bold rounded-xl shadow-glow-blue flex items-center gap-2 transition self-start sm:self-auto"
+        >
+          <PlusCircle size={15} />
+          <span>New Patient Screening</span>
+        </Link>
+      </div>
+
+      {/* 2. Filter & Search Controls */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-4 shadow-dark-sm flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Search */}
+        <div className="relative w-full sm:max-w-xs">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by patient name or ID..."
+            placeholder="Search by name or patient ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 text-xs rounded-xl bg-[#FAF9F7] border border-[#EAE9E4] focus:bg-white focus:border-[#E8752F] text-[#17191D] focus:outline-none transition shadow-warm-xs"
+            className="w-full pl-9 pr-4 py-2 rounded-xl text-xs bg-[#162338] border border-[#1E2E48] focus:border-[#38BDF8] text-white placeholder-slate-400 focus:outline-none transition font-mono"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#5F6368]">
-            <Filter size={14} className="text-[#8A8F98]" />
-            <span>Stage:</span>
-            <select
-              value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
-              className="text-xs p-1.5 rounded-lg border border-[#EAE9E4] bg-white text-[#17191D] focus:outline-none"
+        {/* Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+          {[
+            { id: 'all', label: 'All Patients' },
+            { id: '0', label: 'Grade 0 (Normal)' },
+            { id: '1', label: 'Grade 1 (Mild)' },
+            { id: '2', label: 'Grade 2 (Moderate)' },
+            { id: '3', label: 'Grade 3 (Severe)' },
+            { id: 'referable', label: 'Referable (Grade 2+)' },
+          ].map((pill) => (
+            <button
+              key={pill.id}
+              onClick={() => setStageFilter(pill.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                stageFilter === pill.id
+                  ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm font-bold'
+                  : 'bg-[#162338] border border-[#1E2E48] text-slate-400 hover:text-white'
+              }`}
             >
-              <option value="all">All Stages</option>
-              <option value="referable">Referable Only (Grade 2+)</option>
-              <option value="0">Grade 0 — No DR</option>
-              <option value="1">Grade 1 — Mild</option>
-              <option value="2">Grade 2 — Moderate</option>
-              <option value="3">Grade 3 — Severe</option>
-              <option value="4">Grade 4 — Proliferative</option>
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#5F6368]">
-            <span>Gender:</span>
-            <select
-              value={genderFilter}
-              onChange={(e) => setGenderFilter(e.target.value)}
-              className="text-xs p-1.5 rounded-lg border border-[#EAE9E4] bg-white text-[#17191D] focus:outline-none"
-            >
-              <option value="all">All Genders</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-          </div>
+              {pill.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Patient Cards / Table */}
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={Users}
-          title="No Matching Patients"
-          description="Try modifying your search query or stage filter."
-          action={{
-            label: 'Clear Filters',
-            onClick: () => {
-              setSearchTerm('');
-              setStageFilter('all');
-              setGenderFilter('all');
-            },
-          }}
-        />
-      ) : (
-        <div className="bg-white border border-[#EAE9E4] rounded-2xl p-6 shadow-warm-xs overflow-hidden">
+      {/* 3. Patient Table */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl shadow-dark-sm overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              title="No patients match your query"
+              description="Try adjusting your search criteria or filter tags."
+              actionLabel="Clear Filter"
+              onAction={() => {
+                setSearchTerm('');
+                setStageFilter('all');
+              }}
+            />
+          </div>
+        ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="border-b border-[#EAE9E4] bg-[#FAF9F7] text-[#5F6368] uppercase tracking-wider text-[11px] font-bold">
-                  <th className="py-2.5 pl-3">Patient ID</th>
-                  <th className="py-2.5">Name</th>
-                  <th className="py-2.5">Demographics</th>
-                  <th className="py-2.5">Diabetes Profile</th>
-                  <th className="py-2.5">Latest AI Grade</th>
-                  <th className="py-2.5">Referral Status</th>
-                  <th className="py-2.5">Scans</th>
-                  <th className="py-2.5 pr-3 text-right">Actions</th>
+                <tr className="border-b border-[#1E2E48] bg-[#0B1424] text-slate-400 uppercase tracking-wider text-[10px] font-bold">
+                  <th className="py-3 px-4">Patient Information</th>
+                  <th className="py-3 px-4">Age / Sex</th>
+                  <th className="py-3 px-4">Diabetes Diagnosis</th>
+                  <th className="py-3 px-4">Latest DR Stage</th>
+                  <th className="py-3 px-4">Triage Status</th>
+                  <th className="py-3 px-4">Screenings</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F0EFEA]">
-                {filtered.map(({ patient, latestGrade, isReferable, screeningCount }) => (
+              <tbody className="divide-y divide-[#1E2E48]/60">
+                {filtered.map(({ patient, latestScreening, latestGrade, isReferable, screeningCount }) => (
                   <tr
                     key={patient.patient_id}
-                    className="hover:bg-[#FAF9F7] transition-colors"
+                    className="hover:bg-[#162338]/50 transition group"
                   >
-                    <td className="py-3.5 pl-3 font-semibold text-[#E8752F]">
-                      {patient.patient_id}
-                    </td>
-                    <td className="py-3.5 font-bold text-[#17191D]">
-                      {patient.name}
-                    </td>
-                    <td className="py-3.5 text-[#5F6368]">
-                      {patient.age} yrs • {patient.gender}
-                    </td>
-                    <td className="py-3.5 text-[#5F6368]">
-                      <span className="font-semibold text-[#17191D]">{patient.diabetes_type}</span>
-                      <span className="text-[#8A8F98] text-xs ml-1">({patient.duration_years} yrs)</span>
-                    </td>
-                    <td className="py-3.5">
-                      <StatusBadge grade={latestGrade} size="sm" />
-                    </td>
-                    <td className="py-3.5">
-                      <span
-                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border ${
-                          isReferable
-                            ? 'bg-[#FCF4EF] text-[#C85A20] border-[#F6D7C3]'
-                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                        }`}
-                      >
-                        {isReferable ? 'Referral Recommended' : 'Routine Monitoring'}
-                      </span>
-                    </td>
-                    <td className="py-3.5 text-[#17191D] font-semibold">
-                      {screeningCount} session{screeningCount !== 1 ? 's' : ''}
-                    </td>
-                    <td className="py-3.5 pr-3 text-right">
+                    <td className="py-3.5 px-4">
                       <Link
                         to={`/patients/${patient.patient_id}`}
-                        className="px-3 py-1.5 bg-white hover:bg-[#FAF9F7] text-[#17191D] rounded-lg font-bold text-xs transition inline-flex items-center gap-1 border border-[#EAE9E4] hover:border-[#E8752F] shadow-warm-xs"
+                        className="font-bold text-white group-hover:text-[#38BDF8] transition block"
                       >
-                        <span>History</span>
-                        <ChevronRight size={13} />
+                        {patient.name}
                       </Link>
+                      <span className="text-[11px] font-mono text-slate-400">
+                        {patient.patient_id}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-300">
+                      {patient.age} yrs • {patient.gender}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span className="text-slate-300 font-medium">
+                        {patient.diabetes_type || 'Type 2'}
+                      </span>
+                      {patient.duration_years && (
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          Duration: {patient.duration_years} yrs
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <StatusBadge grade={latestGrade} />
+                    </td>
+                    <td className="py-3.5 px-4">
+                      {isReferable ? (
+                        <span className="inline-flex items-center gap-1 font-bold text-[11px] text-[#FB923C] bg-[#F97316]/15 border border-[#F97316]/30 px-2 py-0.5 rounded-full font-mono">
+                          <AlertTriangle size={11} /> Referable
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-semibold text-[11px] text-emerald-400 bg-emerald-950/50 border border-emerald-800/50 px-2 py-0.5 rounded-full font-mono">
+                          Routine
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-white">
+                      {screeningCount} {screeningCount === 1 ? 'scan' : 'scans'}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          to={`/patients/${patient.patient_id}`}
+                          className="px-3 py-1 rounded-lg text-[11px] font-bold bg-[#162338] text-slate-200 border border-[#1E2E48] hover:border-[#38BDF8] hover:text-white transition"
+                        >
+                          Profile
+                        </Link>
+                        <Link
+                          to="/screening"
+                          className="p-1 rounded-lg text-slate-400 hover:text-[#38BDF8] hover:bg-[#162338] transition"
+                          title="New Screening for Patient"
+                        >
+                          <Eye size={15} />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 };

@@ -6,7 +6,7 @@ import {
   Users,
   CheckCircle2,
   Calendar,
-  Filter,
+  Filter
 } from 'lucide-react';
 import {
   AreaChart,
@@ -22,7 +22,6 @@ import {
   Pie,
   Cell,
 } from 'recharts';
-import { PageHeader } from '../components/common/PageHeader';
 import { StatCard } from '../components/common/StatCard';
 
 const MONTHLY_TRENDS = [
@@ -46,151 +45,148 @@ export const AnalyticsPage: React.FC = () => {
   const [timeframe, setTimeframe] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Population Health & Triage Analytics"
-        subtitle="Epidemiological diabetic retinopathy trends, screening throughput, and clinical override telemetry."
-        badge={
-          <span className="text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1 rounded-full uppercase tracking-wider">
-            Clinical Analytics
-          </span>
-        }
-      />
+    <div className="space-y-6 text-slate-100">
+      {/* 1. Header */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
+            <BarChart3 size={22} className="text-[#38BDF8]" />
+            Population Health & Triage Analytics
+          </h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Epidemiological diabetic retinopathy trends, district screening throughput, and clinical override telemetry
+          </p>
+        </div>
 
-      {/* KPI Stats */}
+        <div className="flex items-center gap-1 bg-[#162338] border border-[#1E2E48] p-1 rounded-xl text-xs font-semibold">
+          {(['7d', '30d', '90d', '1y'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTimeframe(t)}
+              className={`px-3 py-1 rounded-lg transition font-mono ${
+                timeframe === t
+                  ? 'bg-gradient-to-r from-[#2563EB] to-[#0EA5E9] text-white shadow-sm font-bold'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {t.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. KPI Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          title="Total Screened"
+          title="District Population Screened"
           value="2,670"
-          subtitle="Past 6 months"
+          subtitle="Unique individuals"
           icon={Users}
           accentColor="blue"
           trend={{ value: '+18.4%', isPositive: true }}
         />
         <StatCard
-          title="Referable Rate"
+          title="Referable DR Prevalence"
           value="21.8%"
-          subtitle="Grade 2, 3, or 4"
+          subtitle="Grade 2+ detected"
           icon={AlertTriangle}
           accentColor="orange"
-          trend={{ value: '-0.8%', isPositive: true, label: 'Stable' }}
+          trend={{ value: 'Actionable cohort', isPositive: false }}
         />
         <StatCard
-          title="Doctor Override Rate"
-          value="1.7%"
-          subtitle="High AI concordance"
+          title="Clinician Concordance"
+          value="97.6%"
+          subtitle="AI diagnosis confirmed"
           icon={CheckCircle2}
           accentColor="teal"
-          trend={{ value: '98.3% Agreement', isPositive: true }}
+          trend={{ value: '2.4% override rate', isPositive: true }}
         />
         <StatCard
-          title="Quality Gate Rejection"
-          value="2.4%"
-          subtitle="Laplacian blur filter"
-          icon={BarChart3}
-          accentColor="cyan"
-          trend={{ value: '< 3% Target Met', isPositive: true }}
+          title="Monthly Growth"
+          value="+16.2%"
+          subtitle="Screening capacity"
+          icon={TrendingUp}
+          accentColor="purple"
+          trend={{ value: 'Mobile vans', isPositive: true }}
         />
       </div>
 
-      {/* Monthly Screenings & Referrals Trend */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+      {/* 3. Monthly Trends Area Chart */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-[#1E2E48]">
           <div>
-            <h3 className="text-base font-bold text-slate-900">
-              Monthly Throughput vs Actionable Referrals
+            <h3 className="text-base font-bold text-white">
+              Screening Volume vs Actionable Referrals
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Cumulative patient triage volume charted against referable retinopathy detections
+            <p className="text-xs text-slate-400 mt-0.5">
+              6-month district screening capacity growth plotted against specialist referral triage
             </p>
           </div>
-          <div className="flex items-center gap-4 text-xs font-medium">
-            <span className="flex items-center gap-1.5 text-slate-700">
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-              Total Screened
-            </span>
-            <span className="flex items-center gap-1.5 text-slate-700">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500" />
-              Referable DR
-            </span>
-          </div>
+          <span className="text-xs font-mono font-bold text-[#38BDF8]">District Aggregate</span>
         </div>
 
-        <div className="h-64 sm:h-72 w-full">
+        <div className="h-72 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={MONTHLY_TRENDS}>
               <defs>
-                <linearGradient id="screenedGradLight" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.25} />
+                <linearGradient id="colorScreened" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
                   <stop offset="95%" stopColor="#2563EB" stopOpacity={0.0} />
                 </linearGradient>
-                <linearGradient id="referableGradLight" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#EA580C" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#EA580C" stopOpacity={0.0} />
+                <linearGradient id="colorReferral" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#F97316" stopOpacity={0.4} />
+                  <stop offset="95%" stopColor="#F97316" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
-              <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E2E48" vertical={false} />
+              <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
+              <YAxis stroke="#64748B" fontSize={11} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '10px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                  color: '#0F172A',
+                  backgroundColor: '#0B1424',
+                  border: '1px solid #1E2E48',
+                  borderRadius: '12px',
+                  color: '#FFFFFF',
                   fontSize: '12px',
                 }}
               />
-              <Area
-                type="monotone"
-                dataKey="screened"
-                stroke="#2563EB"
-                strokeWidth={2.5}
-                fillOpacity={1}
-                fill="url(#screenedGradLight)"
-                name="Total Screened"
-              />
-              <Area
-                type="monotone"
-                dataKey="referable"
-                stroke="#EA580C"
-                strokeWidth={2.5}
-                fillOpacity={1}
-                fill="url(#referableGradLight)"
-                name="Referable Cases"
-              />
+              <Area type="monotone" dataKey="screened" stroke="#38BDF8" strokeWidth={2.5} fill="url(#colorScreened)" name="Total Screened" />
+              <Area type="monotone" dataKey="referable" stroke="#F97316" strokeWidth={2.5} fill="url(#colorReferral)" name="Referable Findings" />
             </AreaChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Age Correlation Bar Chart */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-2xs space-y-4">
-        <h3 className="text-base font-bold text-slate-900 pb-3 border-b border-slate-100">
-          Age-Cohort Retinopathy Severity Correlation
-        </h3>
+      {/* 4. Age Cohort Severity Distribution */}
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm space-y-4">
+        <div className="pb-3 border-b border-[#1E2E48]">
+          <h3 className="text-base font-bold text-white">
+            Age Demographic vs Retinopathy Severity Staging
+          </h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Prevalence of Mild, Moderate, and Severe NPDR across patient age brackets
+          </p>
+        </div>
 
-        <div className="h-64 sm:h-72 w-full">
+        <div className="h-64 w-full pt-2">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={AGE_CORRELATION}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-              <XAxis dataKey="ageGroup" stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={{ stroke: '#E2E8F0' }} />
-              <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1E2E48" vertical={false} />
+              <XAxis dataKey="ageGroup" stroke="#64748B" fontSize={11} />
+              <YAxis stroke="#64748B" fontSize={11} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '10px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
-                  color: '#0F172A',
+                  backgroundColor: '#0B1424',
+                  border: '1px solid #1E2E48',
+                  borderRadius: '12px',
+                  color: '#FFFFFF',
                   fontSize: '12px',
                 }}
               />
-              <Bar dataKey="normal" stackId="a" fill="#16A34A" name="Grade 0 (No DR)" />
-              <Bar dataKey="mild" stackId="a" fill="#D97706" name="Grade 1 (Mild)" />
-              <Bar dataKey="mod" stackId="a" fill="#EA580C" name="Grade 2 (Moderate)" />
-              <Bar dataKey="severe" stackId="a" fill="#DC2626" name="Grade 3/4 (Severe/PDR)" />
+              <Bar dataKey="normal" fill="#10B981" name="Grade 0 (No DR)" stackId="a" />
+              <Bar dataKey="mild" fill="#F59E0B" name="Grade 1 (Mild)" stackId="a" />
+              <Bar dataKey="mod" fill="#F97316" name="Grade 2 (Moderate)" stackId="a" />
+              <Bar dataKey="severe" fill="#EF4444" name="Grade 3/4 (Severe/PDR)" stackId="a" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

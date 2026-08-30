@@ -7,10 +7,9 @@ import {
   Shield,
   CheckCircle2,
   AlertTriangle,
-  RotateCcw,
+  RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { PageHeader } from '../components/common/PageHeader';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { ConfidenceBar } from '../components/common/ConfidenceBar';
 import { QualityCard } from '../components/common/QualityCard';
@@ -30,10 +29,8 @@ export const ScreeningDetailPage: React.FC = () => {
       <EmptyState
         title="Screening Record Not Found"
         description={`No screening data available for session ID ${id}.`}
-        action={{
-          label: 'Back to Dashboard',
-          onClick: () => navigate('/dashboard'),
-        }}
+        actionLabel="Back to Dashboard"
+        onAction={() => navigate('/dashboard')}
       />
     );
   }
@@ -41,43 +38,51 @@ export const ScreeningDetailPage: React.FC = () => {
   const { patient, prediction, quality, review } = session;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 text-slate-100">
       <div className="flex items-center gap-2">
         <Link
           to="/dashboard"
-          className="text-xs font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1"
+          className="text-xs font-semibold text-slate-400 hover:text-white flex items-center gap-1.5 transition"
         >
           <ArrowLeft size={14} />
           <span>Back to Screenings</span>
         </Link>
       </div>
 
-      <PageHeader
-        title={`Screening Session: ${session.id}`}
-        subtitle={`Examined on ${session.timestamp} for ${patient.name} (${patient.patient_id})`}
-        badge={<StatusBadge grade={prediction.dr_grade} size="md" />}
-      />
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-6 shadow-dark-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-black text-white">
+              Screening Session: {session.id}
+            </h1>
+            <StatusBadge grade={prediction.dr_grade} size="md" />
+          </div>
+          <p className="text-xs text-slate-400 mt-1 font-mono">
+            Examined on {session.timestamp} for {patient.name} ({patient.patient_id})
+          </p>
+        </div>
+      </div>
 
       {/* Patient & Scan Metadata Summary */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-2xs grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+      <div className="bg-[#101B2D] border border-[#1E2E48] rounded-2xl p-5 shadow-dark-sm grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
         <div>
-          <span className="text-slate-500 font-medium">Patient Name</span>
-          <p className="font-bold text-sm text-slate-900 mt-0.5">{patient.name}</p>
+          <span className="text-slate-400 text-[10px] uppercase font-bold block">Patient Name</span>
+          <p className="font-bold text-sm text-white mt-0.5">{patient.name}</p>
         </div>
         <div>
-          <span className="text-slate-500 font-medium">Examined Eye</span>
-          <p className="font-bold text-sm text-slate-900 mt-0.5">{patient.examined_eye}</p>
+          <span className="text-slate-400 text-[10px] uppercase font-bold block">Examined Eye</span>
+          <p className="font-bold text-sm text-white mt-0.5">{patient.examined_eye}</p>
         </div>
         <div>
-          <span className="text-slate-500 font-medium">Diabetes History</span>
-          <p className="font-semibold text-slate-800 mt-0.5">
+          <span className="text-slate-400 text-[10px] uppercase font-bold block">Diabetes History</span>
+          <p className="font-semibold text-slate-300 mt-0.5">
             {patient.diabetes_type} ({patient.duration_years || 'N/A'} yrs)
           </p>
         </div>
         <div>
-          <span className="text-slate-500 font-medium">Doctor Review Status</span>
-          <p className="font-semibold text-blue-700 mt-0.5 capitalize">
-            {review.status} ({review.doctor_name})
+          <span className="text-slate-400 text-[10px] uppercase font-bold block">Review Status</span>
+          <p className="font-semibold text-[#38BDF8] mt-0.5 capitalize font-mono">
+            {review?.status || 'Pending Review'}
           </p>
         </div>
       </div>
