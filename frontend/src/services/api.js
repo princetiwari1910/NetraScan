@@ -31,7 +31,7 @@ export const handleAuthError = (status) => {
   }
 };
 
-// Robust fetch helper with timeout and auto-retry for Render cold starts
+// Robust fetch helper for JSON requests
 export const fetchWithTimeoutAndRetry = async (url, options = {}, retries = 2, timeoutMs = 45000) => {
   let attempt = 0;
   while (attempt <= retries) {
@@ -273,52 +273,89 @@ export const fetchPatientScreenings = async (patientId) => {
 };
 
 // ============================================================
-// SCREENINGS & LIVE AI INFERENCE
+// SCREENINGS & LIVE AI INFERENCE (ROBUST STREAM HANDLING)
 // ============================================================
 export const createScreening = async (patientId, examinedEye, file) => {
-  const formData = new FormData();
-  formData.append("patient_id", String(patientId));
-  formData.append("examined_eye", examinedEye || "OD - Right Eye");
-  formData.append("file", file);
+  let attempt = 0;
+  const maxRetries = 2;
+  const timeoutMs = 60000;
 
-  // NOTE: Do NOT set Content-Type header manually so the browser sets the multipart/form-data boundary
-  const response = await fetchWithTimeoutAndRetry(
-    `${API_BASE_URL}/screenings`,
-    {
-      method: "POST",
-      headers: { ...getAuthHeaders() },
-      body: formData,
-    },
-    2,
-    55000
-  );
+  while (attempt <= maxRetries) {
+    // Fresh FormData instance created on each attempt to avoid consumed stream issues in Safari
+    const formData = new FormData();
+    formData.append("patient_id", String(patientId));
+    formData.append("examined_eye", examinedEye || "OD - Right Eye");
+    formData.append("file", file);
 
-  if (!response.ok) {
-    handleAuthError(response.status);
-    const err = await response.json().catch(() => ({}));
-    const detail = err.detail;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (typeof detail === "object" && detail !== null) {
-      const errorObj = new Error(detail.reason || detail.message || "Screening validation failed.");
-      errorObj.httpStatus = response.status;
-      errorObj.errorCode =
-        detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "SCREENING_FAILED");
-      errorObj.recommendation = detail.recommendation;
-      errorObj.validFundus = detail.valid_fundus;
-      errorObj.status = detail.status;
-      throw errorObj;
+    try {
+      console.log(`[NetraScan API] POST ${API_BASE_URL}/screenings (attempt ${attempt + 1}/${maxRetries + 1})`, {
+        patient_id: patientId,
+        examined_eye: examinedEye,
+        file_name: file?.name,
+        file_size: file?.size,
+      });
+
+      const response = await fetch(`${API_BASE_URL}/screenings`, {
+        method: "POST",
+        headers: { ...getAuthHeaders() },
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if ([502, 503, 504].includes(response.status) && attempt < maxRetries) {
+        console.warn(`[NetraScan API] Server responded with ${response.status} (spin-up). Retrying in 2s...`);
+        attempt++;
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+
+      if (!response.ok) {
+        handleAuthError(response.status);
+        const err = await response.json().catch(() => ({}));
+        const detail = err.detail;
+
+        if (typeof detail === "object" && detail !== null) {
+          const errorObj = new Error(detail.reason || detail.message || "Screening validation failed.");
+          errorObj.httpStatus = response.status;
+          errorObj.errorCode =
+            detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "SCREENING_FAILED");
+          errorObj.recommendation = detail.recommendation;
+          errorObj.validFundus = detail.valid_fundus;
+          errorObj.status = detail.status;
+          throw errorObj;
+        }
+
+        const errorObj = new Error(
+          typeof detail === "string" ? detail : `Screening failed with HTTP status ${response.status}`
+        );
+        errorObj.httpStatus = response.status;
+        errorObj.errorCode =
+          response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
+        throw errorObj;
+      }
+
+      return await response.json();
+    } catch (err) {
+      clearTimeout(timer);
+      if (
+        attempt < maxRetries &&
+        (err.name === "AbortError" ||
+          err.message?.toLowerCase().includes("failed") ||
+          err.message?.toLowerCase().includes("network") ||
+          err.name === "TypeError")
+      ) {
+        console.warn(`[NetraScan API] Connection glitch (${err.message}). Retrying attempt ${attempt + 2}...`);
+        attempt++;
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
     }
-
-    const errorObj = new Error(
-      typeof detail === "string" ? detail : `Screening failed with HTTP status ${response.status}`
-    );
-    errorObj.httpStatus = response.status;
-    errorObj.errorCode =
-      response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
-    throw errorObj;
   }
-
-  return await response.json();
 };
 
 export const fetchScreenings = async (verified = null) => {
@@ -440,46 +477,73 @@ export const analyzeRetinalImage = async (file) => {
     throw new Error("No image file provided for analysis.");
   }
 
-  const formData = new FormData();
-  formData.append("file", file);
+  let attempt = 0;
+  const maxRetries = 2;
+  const timeoutMs = 60000;
 
-  const response = await fetchWithTimeoutAndRetry(
-    `${API_HOST}/analyze`,
-    {
-      method: "POST",
-      headers: { ...getAuthHeaders() },
-      body: formData,
-    },
-    2,
-    55000
-  );
+  while (attempt <= maxRetries) {
+    const formData = new FormData();
+    formData.append("file", file);
 
-  if (!response.ok) {
-    handleAuthError(response.status);
-    const errorData = await response.json().catch(() => ({}));
-    const detail = errorData.detail;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (typeof detail === "object" && detail !== null) {
-      const errorObj = new Error(detail.reason || detail.message || "Analysis failed.");
-      errorObj.httpStatus = response.status;
-      errorObj.errorCode =
-        detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "ANALYSIS_FAILED");
-      errorObj.recommendation = detail.recommendation;
-      errorObj.validFundus = detail.valid_fundus;
-      errorObj.status = detail.status;
-      throw errorObj;
+    try {
+      const response = await fetch(`${API_HOST}/analyze`, {
+        method: "POST",
+        headers: { ...getAuthHeaders() },
+        body: formData,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if ([502, 503, 504].includes(response.status) && attempt < maxRetries) {
+        attempt++;
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+
+      if (!response.ok) {
+        handleAuthError(response.status);
+        const errorData = await response.json().catch(() => ({}));
+        const detail = errorData.detail;
+
+        if (typeof detail === "object" && detail !== null) {
+          const errorObj = new Error(detail.reason || detail.message || "Analysis failed.");
+          errorObj.httpStatus = response.status;
+          errorObj.errorCode =
+            detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "ANALYSIS_FAILED");
+          errorObj.recommendation = detail.recommendation;
+          errorObj.validFundus = detail.valid_fundus;
+          errorObj.status = detail.status;
+          throw errorObj;
+        }
+
+        const errorObj = new Error(
+          typeof detail === "string" ? detail : errorData.message || `Analysis failed with HTTP ${response.status}`
+        );
+        errorObj.httpStatus = response.status;
+        errorObj.errorCode =
+          response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
+        throw errorObj;
+      }
+
+      return await response.json();
+    } catch (err) {
+      clearTimeout(timer);
+      if (
+        attempt < maxRetries &&
+        (err.name === "AbortError" ||
+          err.message?.toLowerCase().includes("failed") ||
+          err.name === "TypeError")
+      ) {
+        attempt++;
+        await new Promise((r) => setTimeout(r, 2000));
+        continue;
+      }
+      throw err;
     }
-
-    const errorObj = new Error(
-      typeof detail === "string" ? detail : errorData.message || `Analysis failed with HTTP ${response.status}`
-    );
-    errorObj.httpStatus = response.status;
-    errorObj.errorCode =
-      response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
-    throw errorObj;
   }
-
-  return await response.json();
 };
 
 export const generateClinicalReport = async (patientInfo, analysisResult) => {
