@@ -55,14 +55,19 @@ export function ScreeningProvider({ children }) {
     if (token) {
       fetchCurrentUser()
         .then((u) => {
-          setUser(u);
-          localStorage.setItem("netrascan_user", JSON.stringify(u));
+          if (u) {
+            setUser(u);
+            localStorage.setItem("netrascan_user", JSON.stringify(u));
+          }
         })
         .catch((err) => {
-          console.warn("Token expired or invalid:", err);
-          setUser(null);
-          localStorage.removeItem("netrascan_user");
-          localStorage.removeItem("netrascan_token");
+          console.warn("[NetraScan Auth Notice]:", err.message);
+          // Only invalidate session if server explicitly returns 401 Unauthorized
+          if (err.httpStatus === 401 || err.message?.toLowerCase().includes("unauthorized")) {
+            setUser(null);
+            localStorage.removeItem("netrascan_user");
+            localStorage.removeItem("netrascan_token");
+          }
         });
     }
   }, []);
@@ -74,6 +79,13 @@ export function ScreeningProvider({ children }) {
         name: user.phc_name || "Primary Health Centre Pune",
         location: user.phc_name || "Pune, Maharashtra",
         code: user.phc_code || "PUNE",
+      }
+    : localStorage.getItem("netrascan_token")
+    ? {
+        id: "PHC-PUNE-001",
+        name: "Primary Health Centre Pune",
+        location: "Pune, Maharashtra",
+        code: "PUNE",
       }
     : null;
 

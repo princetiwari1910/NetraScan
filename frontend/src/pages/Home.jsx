@@ -42,7 +42,8 @@ function Home() {
   */
 
   const handleStartScreening = () => {
-    if (!phc) {
+    const token = localStorage.getItem("netrascan_token");
+    if (!phc && !token) {
       navigate("/login");
       return;
     }
