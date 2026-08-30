@@ -7,6 +7,7 @@ import {
   createPatient,
   fetchPatients,
 } from "../services/api";
+import { validateFundusClientSide } from "../services/imageValidation";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
@@ -41,7 +42,7 @@ function Analysis() {
     user,
   } = useScreening();
 
-  const [activeStageIndex, setActiveStageIndex] = useState(3); // Stage 3: AI retinal analysis
+  const [activeStageIndex, setActiveStageIndex] = useState(1); // Stage 1: Fundus image validation
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [errorState, setErrorState] = useState(null); // { type, title, message, action, details }
   const [isProcessing, setIsProcessing] = useState(false);
@@ -59,31 +60,35 @@ function Analysis() {
       id: "validation",
       label: "Fundus image validation",
       description: "Anatomical chromaticity and FOV integrity verified",
-      isCompleted: activeStageIndex >= 1,
+      isCurrent: activeStageIndex === 1,
+      isCompleted: activeStageIndex > 1,
     },
     {
       id: "preprocess",
       label: "Image preprocessing",
       description: "Channel-wise CLAHE contrast enhancement completed",
-      isCompleted: activeStageIndex >= 2,
+      isCurrent: activeStageIndex === 2,
+      isCompleted: activeStageIndex > 2,
     },
     {
       id: "inference",
       label: "AI retinal analysis",
       description: "Evaluating diabetic retinopathy features via ResNet-18",
       isCurrent: activeStageIndex === 3,
-      isCompleted: activeStageIndex >= 4,
+      isCompleted: activeStageIndex > 3,
     },
     {
       id: "findings",
       label: "Clinical findings",
       description: "Softmax lesion triage and ICDR stage classification",
-      isCompleted: activeStageIndex >= 4,
+      isCurrent: activeStageIndex === 4,
+      isCompleted: activeStageIndex > 4,
     },
     {
       id: "report",
       label: "Report generation",
       description: "Compiling explainable findings and Grad-CAM heatmap",
+      isCurrent: activeStageIndex === 5,
       isCompleted: activeStageIndex >= 5,
     },
   ];
@@ -109,7 +114,7 @@ function Analysis() {
     isAnalyzing.current = true;
     setIsProcessing(true);
     setErrorState(null);
-    setActiveStageIndex(3);
+    setActiveStageIndex(1); // Stage 1: Fundus image validation
     setElapsedSeconds(0);
 
     const timer = setInterval(() => {
@@ -117,6 +122,32 @@ function Analysis() {
     }, 1000);
 
     try {
+      // ========================================================
+      // STEP 1: IMMEDIATE CLIENT-SIDE FUNDUS ANATOMY VALIDATION
+      // ========================================================
+      const clientCheck = await validateFundusClientSide(image);
+      if (!clientCheck.isValid) {
+        clearInterval(timer);
+        setAnalysisResult({
+          status: "invalid_fundus",
+          valid_fundus: false,
+          error_code: "INVALID_FUNDUS_IMAGE",
+          reason:
+            clientCheck.reason ||
+            "Non-fundus image detected: uploaded image does not contain retinal fundus characteristics.",
+          recommendation:
+            clientCheck.recommendation ||
+            "Please upload a valid retinal fundus photograph. Human photos, animals, documents, screenshots, and other non-retinal images are not accepted for screening.",
+        });
+        navigate("/results");
+        return;
+      }
+
+      // ========================================================
+      // STEP 2: IMAGE PREPROCESSING & PATIENT RESOLUTION
+      // ========================================================
+      setActiveStageIndex(2);
+
       let resolvedPatientId = null;
 
       // 1. Check if patient has numeric ID
@@ -169,6 +200,11 @@ function Analysis() {
           console.warn("[NetraScan] Patient resolution notice:", patLookupErr.message);
         }
       }
+
+      // ========================================================
+      // STEP 3: DISPATCH AI RETINAL SCREENING (POST /api/screenings)
+      // ========================================================
+      setActiveStageIndex(3);
 
       console.log("[NetraScan] Dispatching AI screening request:", {
         patient_id: resolvedPatientId,
@@ -234,17 +270,17 @@ function Analysis() {
         setAnalysisResult(result);
         setTimeout(() => {
           navigate("/results");
-        }, 350);
+        }, 250);
       } else if (result.status === "invalid_fundus") {
         setAnalysisResult(result);
         setTimeout(() => {
           navigate("/results");
-        }, 200);
+        }, 100);
       } else if (result.status === "recapture_required") {
         setAnalysisResult(result);
         setTimeout(() => {
           navigate("/results");
-        }, 200);
+        }, 100);
       } else {
         setErrorState({
           type: "UNKNOWN_ERROR",
