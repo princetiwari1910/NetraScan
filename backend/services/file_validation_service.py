@@ -160,28 +160,28 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
     )
 
     # REJECTION RULES:
-    # 1. Monochromatic / Document Rejection
-    if mean_color_variance < 8.0 or mean_saturation < 20.0:
-        logger.warning("Fundus Gate: Rejected as monochromatic / document.")
+    # 1. Monochromatic / Document Rejection (strict document scans and pure grayscale)
+    if mean_color_variance < 5.0 or mean_saturation < 12.0:
+        logger.warning(f"Fundus Gate: Rejected as monochromatic / document (var={mean_color_variance:.1f}, sat={mean_saturation:.1f}).")
         return False, "Image lacks retinal chromaticity (monochromatic, document scan, or grayscale photo).", metrics
 
-    # 2. Blue / Cold Channel Rejection (Sky, blue documents, outdoor scenes, cold photos)
-    if b_ratio > 0.28 or blue_cold_fraction > 0.12:
-        logger.warning("Fundus Gate: Rejected due to excessive blue/cyan spectrum.")
+    # 2. Blue / Cold Channel Rejection (Sky, blue UI, outdoor scenes, cool non-medical photos)
+    if b_ratio > 0.38 or blue_cold_fraction > 0.25:
+        logger.warning(f"Fundus Gate: Rejected due to excessive blue/cyan spectrum (b_ratio={b_ratio:.2f}, blue_frac={blue_cold_fraction:.2f}).")
         return False, "Color spectrum does not match retinal fundus illumination (excessive blue/cyan components).", metrics
 
-    # 3. Excessive Foliage / Green Dominance (Grass, plants, clothing)
-    if green_plant_fraction > 0.15:
-        logger.warning("Fundus Gate: Rejected due to green foliage spectrum.")
+    # 3. Excessive Foliage / Green Dominance (Grass, plants, outdoor foliage)
+    if green_plant_fraction > 0.25:
+        logger.warning(f"Fundus Gate: Rejected due to green foliage spectrum (green_frac={green_plant_fraction:.2f}).")
         return False, "Green-dominant spectrum typical of foliage or non-medical objects.", metrics
 
-    # 4. Lack of Retinal Warmth (Red must exceed Blue in retinal choroid)
-    if rb_ratio < 1.40 or red_over_blue_fraction < 0.48:
+    # 4. Lack of Retinal Warmth (Red exceeds Blue in retinal tissue)
+    if rb_ratio < 1.15 or red_over_blue_fraction < 0.35:
         logger.warning(f"Fundus Gate: Rejected due to low RB ratio ({rb_ratio:.2f}) or red_over_blue ({red_over_blue_fraction:.2f}).")
         return False, "Lack of characteristic retinal choroidal red-channel dominance.", metrics
 
-    # 5. Retinal Hue Band Rejection
-    if retinal_hue_fraction < 0.48:
+    # 5. Retinal Hue Band Rejection (Retinal orange-red-amber hues)
+    if retinal_hue_fraction < 0.35:
         logger.warning(f"Fundus Gate: Rejected due to out-of-band hue distribution ({retinal_hue_fraction:.2f}).")
         return False, "Color hue distribution falls outside the ophthalmic retinal spectrum (orange-red spectrum required).", metrics
 
