@@ -61,7 +61,7 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
     """
     Evaluates whether an image is a genuine ophthalmic retinal/fundus photograph.
     Distinguishes genuine retinal scans (both sharp and low-quality) from non-medical photos
-    (animals/horses, human portraits, documents, screenshots, landscapes, etc.).
+    (human portraits, selfies, animals, documents, screenshots, landscapes, objects, etc.).
     
     Returns:
         (is_valid_fundus, failure_reason, feature_metrics)
@@ -86,9 +86,16 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
 
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     img_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
-    # 1. Segment illuminated retinal tissue: exclude dark borders (<22) and white/gray backgrounds (>235 with low sat)
+    # 1. Check 4 corners for standard ophthalmic camera aperture / circular field of view
+    cw, ch = max(5, int(w * 0.08)), max(5, int(h * 0.08))
+    corners = [img_rgb[:ch, :cw], img_rgb[:ch, -cw:], img_rgb[-ch:, :cw], img_rgb[-ch:, -cw:]]
+    corner_pixels = np.concatenate([cn.reshape(-1, 3) for cn in corners], axis=0)
+    corner_dark_fraction = float(np.count_nonzero(np.max(corner_pixels, axis=1) < 45) / len(corner_pixels))
+    corner_white_fraction = float(np.count_nonzero(np.min(corner_pixels, axis=1) > 220) / len(corner_pixels))
+    has_aperture_border = (corner_dark_fraction >= 0.50) or (corner_white_fraction >= 0.50)
+
+    # 2. Segment illuminated retinal tissue: exclude dark borders (<22) and white/gray backgrounds (>235 with low sat)
     is_dark = (img_rgb[:, :, 0] < 22) & (img_rgb[:, :, 1] < 22) & (img_rgb[:, :, 2] < 22)
     is_white = (img_rgb[:, :, 0] > 235) & (img_rgb[:, :, 1] > 235) & (img_rgb[:, :, 2] > 235) & (img_hsv[:, :, 1] < 25)
     tissue_mask = ~(is_dark | is_white)
@@ -98,7 +105,7 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
     tissue_ratio = tissue_pixel_count / total_pixels
 
     if tissue_ratio < 0.08:
-        return False, "No significant illuminated retinal field detected (mostly empty/black/white background).", {"tissue_ratio": round(tissue_ratio, 3)}
+        return False, "No illuminated retinal field detected (mostly empty, black, or document canvas).", {"tissue_ratio": round(tissue_ratio, 3)}
 
     r_tissue = img_rgb[:, :, 0][tissue_mask].astype(np.float32)
     g_tissue = img_rgb[:, :, 1][tissue_mask].astype(np.float32)
@@ -117,14 +124,16 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
 
     rb_ratio = float((mean_r + 1e-5) / (mean_b + 1e-5))
     rg_ratio = float((mean_r + 1e-5) / (mean_g + 1e-5))
-
-    # Fraction of tissue where Red significantly exceeds Blue (characteristic of choroidal/hemoglobin spectrum)
-    red_over_blue_fraction = float(np.count_nonzero(r_tissue >= (b_tissue * 1.20)) / tissue_pixel_count)
-
-    # Retinal hue range in OpenCV [0..180]: Red/Orange/Yellow/Amber covers [0..42] and [145..180]
-    retinal_hue_mask = (h_tissue <= 42) | (h_tissue >= 145)
-    retinal_hue_fraction = float(np.count_nonzero(retinal_hue_mask) / tissue_pixel_count)
+    gb_ratio = float((mean_g + 1e-5) / (mean_b + 1e-5))
     mean_saturation = float(np.mean(s_tissue))
+
+    # Retinal hue range in OpenCV [0..180]: Red/Orange/Amber covers [0..40] and [146..180]
+    retinal_hue_mask = (h_tissue <= 40) | (h_tissue >= 146)
+    retinal_hue_fraction = float(np.count_nonzero(retinal_hue_mask) / tissue_pixel_count)
+
+    # Fraction of tissue where Red exceeds Green and Blue (characteristic of choroidal hemoglobin spectrum)
+    retinal_chroma_mask = (r_tissue >= (g_tissue * 1.08)) & (r_tissue >= (b_tissue * 1.30))
+    retinal_chroma_fraction = float(np.count_nonzero(retinal_chroma_mask) / tissue_pixel_count)
 
     # Monochromatic check: Channel variance in RGB
     rg_diff = np.abs(r_tissue - g_tissue)
@@ -134,8 +143,8 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
     # Cold / Blue dominant pixel fraction (e.g. sky, blue UI, cool backgrounds: B > R + 5)
     blue_cold_fraction = float(np.count_nonzero(b_tissue > (r_tissue + 5)) / tissue_pixel_count)
 
-    # Green foliage fraction (e.g. grass, plants: G > R + 20)
-    green_plant_fraction = float(np.count_nonzero(g_tissue > (r_tissue + 20)) / tissue_pixel_count)
+    # Green foliage fraction (e.g. grass, plants: G > R + 15)
+    green_plant_fraction = float(np.count_nonzero(g_tissue > (r_tissue + 15)) / tissue_pixel_count)
 
     metrics = {
         "dimensions": f"{w}x{h}",
@@ -144,44 +153,51 @@ def validate_fundus_anatomy(img_bgr: np.ndarray) -> Tuple[bool, str, Dict[str, A
         "mean_b_ratio": round(b_ratio, 3),
         "rb_ratio": round(rb_ratio, 2),
         "rg_ratio": round(rg_ratio, 2),
-        "red_over_blue_fraction": round(red_over_blue_fraction, 3),
+        "retinal_chroma_fraction": round(retinal_chroma_fraction, 3),
         "retinal_hue_fraction": round(retinal_hue_fraction, 3),
         "blue_cold_fraction": round(blue_cold_fraction, 3),
         "green_plant_fraction": round(green_plant_fraction, 3),
         "mean_saturation": round(mean_saturation, 1),
         "mean_color_variance": round(mean_color_variance, 1),
+        "corner_dark_fraction": round(corner_dark_fraction, 2),
+        "has_aperture_border": has_aperture_border,
     }
-
-    # Technical diagnostic logging
-    logger.info(
-        f"Fundus Gate Evaluation: dims={metrics['dimensions']}, tissue_ratio={metrics['tissue_ratio']}, "
-        f"rb_ratio={metrics['rb_ratio']}, hue_frac={metrics['retinal_hue_fraction']}, "
-        f"blue_frac={metrics['blue_cold_fraction']}, sat={metrics['mean_saturation']}"
-    )
 
     # REJECTION RULES:
     # 1. Monochromatic / Document Rejection (strict document scans and pure grayscale)
-    if mean_color_variance < 5.0 or mean_saturation < 12.0:
+    if mean_color_variance < 5.0 or mean_saturation < 15.0:
         logger.warning(f"Fundus Gate: Rejected as monochromatic / document (var={mean_color_variance:.1f}, sat={mean_saturation:.1f}).")
-        return False, "Image lacks retinal chromaticity (monochromatic, document scan, or grayscale photo).", metrics
+        return False, "Image lacks retinal chromaticity (document scan, screenshot, or grayscale photo).", metrics
 
     # 2. Blue / Cold Channel Rejection (Sky, blue UI, outdoor scenes, cool non-medical photos)
-    if b_ratio > 0.38 or blue_cold_fraction > 0.25:
+    if b_ratio > 0.35 or blue_cold_fraction > 0.20:
         logger.warning(f"Fundus Gate: Rejected due to excessive blue/cyan spectrum (b_ratio={b_ratio:.2f}, blue_frac={blue_cold_fraction:.2f}).")
         return False, "Color spectrum does not match retinal fundus illumination (excessive blue/cyan components).", metrics
 
     # 3. Excessive Foliage / Green Dominance (Grass, plants, outdoor foliage)
-    if green_plant_fraction > 0.25:
+    if green_plant_fraction > 0.20 or g_ratio > 0.42:
         logger.warning(f"Fundus Gate: Rejected due to green foliage spectrum (green_frac={green_plant_fraction:.2f}).")
         return False, "Green-dominant spectrum typical of foliage or non-medical objects.", metrics
 
-    # 4. Lack of Retinal Warmth (Red exceeds Blue in retinal tissue)
-    if rb_ratio < 1.15 or red_over_blue_fraction < 0.35:
-        logger.warning(f"Fundus Gate: Rejected due to low RB ratio ({rb_ratio:.2f}) or red_over_blue ({red_over_blue_fraction:.2f}).")
+    # 4. Human Portrait / Face / Selfie / Natural Scene Detection:
+    # In human portraits, skin tone has low saturation (sat < 75) and weak RG ratio (rg < 1.28).
+    # In genuine fundus photography, retinal choroid has deep saturation (sat > 80) and strong R > G > B dominance.
+    if not has_aperture_border:
+        if mean_saturation < 75.0 or rg_ratio < 1.28 or retinal_chroma_fraction < 0.40:
+            logger.warning(f"Fundus Gate: Rejected non-aperture photo (sat={mean_saturation:.1f}, rg={rg_ratio:.2f}, chroma_frac={retinal_chroma_fraction:.2f}).")
+            return False, "Image lacks characteristic ophthalmic retinal choroidal field (human portrait, selfie, or non-medical photo).", metrics
+    else:
+        if mean_saturation < 35.0 or rg_ratio < 1.15 or retinal_chroma_fraction < 0.20:
+            logger.warning(f"Fundus Gate: Rejected aperture photo with insufficient retinal warmth.")
+            return False, "Image lacks characteristic retinal tissue chromaticity.", metrics
+
+    # 5. Lack of Retinal Warmth (Red exceeds Blue in retinal tissue)
+    if rb_ratio < 1.50:
+        logger.warning(f"Fundus Gate: Rejected due to low RB ratio ({rb_ratio:.2f}).")
         return False, "Lack of characteristic retinal choroidal red-channel dominance.", metrics
 
-    # 5. Retinal Hue Band Rejection (Retinal orange-red-amber hues)
-    if retinal_hue_fraction < 0.35:
+    # 6. Retinal Hue Band Rejection (Retinal orange-red-amber hues)
+    if retinal_hue_fraction < 0.45:
         logger.warning(f"Fundus Gate: Rejected due to out-of-band hue distribution ({retinal_hue_fraction:.2f}).")
         return False, "Color hue distribution falls outside the ophthalmic retinal spectrum (orange-red spectrum required).", metrics
 
