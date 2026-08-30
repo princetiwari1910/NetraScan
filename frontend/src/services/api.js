@@ -31,17 +31,59 @@ export const handleAuthError = (status) => {
   }
 };
 
+// Robust fetch helper with timeout and auto-retry for Render cold starts
+export const fetchWithTimeoutAndRetry = async (url, options = {}, retries = 2, timeoutMs = 45000) => {
+  let attempt = 0;
+  while (attempt <= retries) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      // If gateway error (502, 503, 504) during Render spin-up, retry with backoff
+      if ([502, 503, 504].includes(response.status) && attempt < retries) {
+        attempt++;
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+        continue;
+      }
+
+      return response;
+    } catch (err) {
+      clearTimeout(timer);
+      if (
+        attempt < retries &&
+        (err.name === "AbortError" ||
+          err.message?.toLowerCase().includes("failed") ||
+          err.name === "TypeError")
+      ) {
+        attempt++;
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+};
+
 // ============================================================
 // SYSTEM & HEALTH
 // ============================================================
 export const checkHealth = async () => {
   try {
-    const response = await fetch(`${API_HOST}/health`, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
+    const response = await fetchWithTimeoutAndRetry(
+      `${API_HOST}/health`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
       },
-    });
+      1,
+      10000
+    );
 
     if (!response.ok) {
       throw new Error(`Health check failed with status: ${response.status}`);
@@ -69,7 +111,7 @@ export const checkHealth = async () => {
 // AUTHENTICATION & USERS
 // ============================================================
 export const loginUser = async (email, password) => {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: email.trim(), password }),
@@ -88,7 +130,7 @@ export const loginUser = async (email, password) => {
 };
 
 export const fetchCurrentUser = async () => {
-  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/auth/me`, {
     headers: { ...getAuthHeaders() },
   });
 
@@ -100,7 +142,7 @@ export const fetchCurrentUser = async () => {
 };
 
 export const createUser = async (userData) => {
-  const response = await fetch(`${API_BASE_URL}/auth/users`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/auth/users`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -121,7 +163,7 @@ export const createUser = async (userData) => {
 // PHC FLEET MANAGEMENT
 // ============================================================
 export const fetchPHCs = async () => {
-  const response = await fetch(`${API_BASE_URL}/phcs`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/phcs`, {
     headers: { ...getAuthHeaders() },
   });
   if (!response.ok) {
@@ -132,7 +174,7 @@ export const fetchPHCs = async () => {
 };
 
 export const createPHC = async (phcData) => {
-  const response = await fetch(`${API_BASE_URL}/phcs`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/phcs`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -157,7 +199,7 @@ export const fetchPatients = async (query = "") => {
     ? `${API_BASE_URL}/patients/search?q=${encodeURIComponent(query)}`
     : `${API_BASE_URL}/patients`;
 
-  const response = await fetch(endpoint, {
+  const response = await fetchWithTimeoutAndRetry(`${endpoint}`, {
     headers: { ...getAuthHeaders() },
   });
 
@@ -169,7 +211,7 @@ export const fetchPatients = async (query = "") => {
 };
 
 export const createPatient = async (patientData) => {
-  const response = await fetch(`${API_BASE_URL}/patients`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/patients`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -188,7 +230,7 @@ export const createPatient = async (patientData) => {
 };
 
 export const fetchPatientDetails = async (patientId) => {
-  const response = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/patients/${patientId}`, {
     headers: { ...getAuthHeaders() },
   });
   if (!response.ok) {
@@ -199,7 +241,7 @@ export const fetchPatientDetails = async (patientId) => {
 };
 
 export const updatePatient = async (patientId, data) => {
-  const response = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/patients/${patientId}`, {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -217,9 +259,12 @@ export const updatePatient = async (patientId, data) => {
 };
 
 export const fetchPatientScreenings = async (patientId) => {
-  const response = await fetch(`${API_BASE_URL}/patients/${patientId}/screenings`, {
-    headers: { ...getAuthHeaders() },
-  });
+  const response = await fetchWithTimeoutAndRetry(
+    `${API_BASE_URL}/patients/${patientId}/screenings`,
+    {
+      headers: { ...getAuthHeaders() },
+    }
+  );
   if (!response.ok) {
     handleAuthError(response.status);
     throw new Error("Failed to fetch patient screening history.");
@@ -237,11 +282,16 @@ export const createScreening = async (patientId, examinedEye, file) => {
   formData.append("file", file);
 
   // NOTE: Do NOT set Content-Type header manually so the browser sets the multipart/form-data boundary
-  const response = await fetch(`${API_BASE_URL}/screenings`, {
-    method: "POST",
-    headers: { ...getAuthHeaders() },
-    body: formData,
-  });
+  const response = await fetchWithTimeoutAndRetry(
+    `${API_BASE_URL}/screenings`,
+    {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+      body: formData,
+    },
+    2,
+    55000
+  );
 
   if (!response.ok) {
     handleAuthError(response.status);
@@ -251,16 +301,20 @@ export const createScreening = async (patientId, examinedEye, file) => {
     if (typeof detail === "object" && detail !== null) {
       const errorObj = new Error(detail.reason || detail.message || "Screening validation failed.");
       errorObj.httpStatus = response.status;
-      errorObj.errorCode = detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "SCREENING_FAILED");
+      errorObj.errorCode =
+        detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "SCREENING_FAILED");
       errorObj.recommendation = detail.recommendation;
       errorObj.validFundus = detail.valid_fundus;
       errorObj.status = detail.status;
       throw errorObj;
     }
 
-    const errorObj = new Error(typeof detail === "string" ? detail : `Screening failed with HTTP status ${response.status}`);
+    const errorObj = new Error(
+      typeof detail === "string" ? detail : `Screening failed with HTTP status ${response.status}`
+    );
     errorObj.httpStatus = response.status;
-    errorObj.errorCode = response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
+    errorObj.errorCode =
+      response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
     throw errorObj;
   }
 
@@ -273,7 +327,7 @@ export const fetchScreenings = async (verified = null) => {
     url += `?doctor_verified=${verified}`;
   }
 
-  const response = await fetch(url, {
+  const response = await fetchWithTimeoutAndRetry(url, {
     headers: { ...getAuthHeaders() },
   });
   if (!response.ok) {
@@ -284,7 +338,7 @@ export const fetchScreenings = async (verified = null) => {
 };
 
 export const fetchScreeningDetails = async (screeningId) => {
-  const response = await fetch(`${API_BASE_URL}/screenings/${screeningId}`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/screenings/${screeningId}`, {
     headers: { ...getAuthHeaders() },
   });
   if (!response.ok) {
@@ -295,7 +349,7 @@ export const fetchScreeningDetails = async (screeningId) => {
 };
 
 export const verifyScreening = async (screeningId, decision, notes) => {
-  const response = await fetch(`${API_BASE_URL}/screenings/${screeningId}/verify`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/screenings/${screeningId}/verify`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -319,7 +373,7 @@ export const verifyScreening = async (screeningId, decision, notes) => {
 // CLINICAL REPORTS (HTML & DOWNLOAD)
 // ============================================================
 export const fetchScreeningReportHtml = async (screeningId, download = false) => {
-  const response = await fetch(
+  const response = await fetchWithTimeoutAndRetry(
     `${API_BASE_URL}/screenings/${screeningId}/report?download=${download}`,
     {
       headers: { ...getAuthHeaders() },
@@ -368,7 +422,7 @@ export const openClinicalReport = async (screeningId, download = false) => {
 };
 
 export const fetchDashboardStats = async () => {
-  const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/dashboard/stats`, {
     headers: { ...getAuthHeaders() },
   });
   if (!response.ok) {
@@ -389,11 +443,16 @@ export const analyzeRetinalImage = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_HOST}/analyze`, {
-    method: "POST",
-    headers: { ...getAuthHeaders() },
-    body: formData,
-  });
+  const response = await fetchWithTimeoutAndRetry(
+    `${API_HOST}/analyze`,
+    {
+      method: "POST",
+      headers: { ...getAuthHeaders() },
+      body: formData,
+    },
+    2,
+    55000
+  );
 
   if (!response.ok) {
     handleAuthError(response.status);
@@ -403,7 +462,8 @@ export const analyzeRetinalImage = async (file) => {
     if (typeof detail === "object" && detail !== null) {
       const errorObj = new Error(detail.reason || detail.message || "Analysis failed.");
       errorObj.httpStatus = response.status;
-      errorObj.errorCode = detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "ANALYSIS_FAILED");
+      errorObj.errorCode =
+        detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "ANALYSIS_FAILED");
       errorObj.recommendation = detail.recommendation;
       errorObj.validFundus = detail.valid_fundus;
       errorObj.status = detail.status;
@@ -414,7 +474,8 @@ export const analyzeRetinalImage = async (file) => {
       typeof detail === "string" ? detail : errorData.message || `Analysis failed with HTTP ${response.status}`
     );
     errorObj.httpStatus = response.status;
-    errorObj.errorCode = response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
+    errorObj.errorCode =
+      response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
     throw errorObj;
   }
 
@@ -438,7 +499,7 @@ export const generateClinicalReport = async (patientInfo, analysisResult) => {
     analysis_result: analysisResult,
   };
 
-  const response = await fetch(`${API_HOST}/reports/generate`, {
+  const response = await fetchWithTimeoutAndRetry(`${API_HOST}/reports/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
