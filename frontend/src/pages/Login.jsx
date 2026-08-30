@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
 import { loginUser } from "../services/api";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 function Login() {
   const navigate = useNavigate();
@@ -75,7 +76,7 @@ function Login() {
         <div className="login-nav-container">
           <div className="login-logo">
             <div className="login-logo-icon">
-              <Eye size={20} />
+              <ScanningEyeIcon size={20} />
             </div>
             <span>
               Netra<span>Scan</span>
