@@ -76,7 +76,7 @@ function Login() {
         <div className="login-nav-container">
           <div className="login-logo">
             <div className="login-logo-icon">
-              <ScanningEyeIcon size={20} />
+              <ScanningEyeIcon size={26} />
             </div>
             <span>
               Netra<span>Scan</span>

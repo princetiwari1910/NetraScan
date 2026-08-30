@@ -82,8 +82,8 @@ function DoctorLogin() {
       <nav className="login-navbar">
         <div className="login-nav-container">
           <div className="login-logo">
-            <div className="login-logo-icon" style={{ background: "#2563eb" }}>
-              <ScanningEyeIcon size={20} />
+            <div className="login-logo-icon" style={{ background: "#3c7398" }}>
+              <ScanningEyeIcon size={26} />
             </div>
             <span>
               Netra<span style={{ color: "#2563eb" }}>Scan</span>
