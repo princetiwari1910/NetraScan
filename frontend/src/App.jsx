@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
-import { ScreeningProvider, useScreening } from "./context/ScreeningContext";
+import { ScreeningProvider } from "./context/ScreeningContext";
 import RoleRoute from "./components/RoleRoute";
 
 import Login from "./pages/Login";
@@ -17,16 +17,25 @@ import Results from "./pages/Results";
 import Report from "./pages/Report";
 import Unauthorized from "./pages/Unauthorized";
 
+// DOCTOR PORTAL PAGES
+import DoctorLogin from "./pages/doctor/DoctorLogin";
+import DoctorDashboard from "./pages/doctor/DoctorDashboard";
+import DoctorPatients from "./pages/doctor/DoctorPatients";
+import DoctorPatientDetail from "./pages/doctor/DoctorPatientDetail";
+import DoctorReports from "./pages/doctor/DoctorReports";
+import DoctorProfile from "./pages/doctor/DoctorProfile";
+
 function App() {
   return (
     <ScreeningProvider>
       <BrowserRouter>
         <Routes>
-          {/* AUTHENTICATION */}
+          {/* ================= AUTHENTICATION ================= */}
           <Route path="/login" element={<Login />} />
+          <Route path="/doctor/login" element={<DoctorLogin />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* MAIN HOME PORTAL */}
+          {/* ================= MAIN HOME PORTAL ================= */}
           <Route
             path="/home"
             element={
@@ -36,7 +45,73 @@ function App() {
             }
           />
 
-          {/* SUPER ADMIN PORTAL (FLEET & USER GOVERNANCE) */}
+          {/* ================= DOCTOR PORTAL WORKFLOW ================= */}
+          <Route
+            path="/doctor"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/dashboard"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/screenings"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorReview />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor-review"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorReview />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/patients"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorPatients />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/patients/:id"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorPatientDetail />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/reports"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorReports />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/profile"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorProfile />
+              </RoleRoute>
+            }
+          />
+
+          {/* ================= SUPER ADMIN PORTAL ================= */}
           <Route
             path="/admin"
             element={
@@ -54,25 +129,7 @@ function App() {
             }
           />
 
-          {/* DOCTOR PORTAL (OPHTHALMIC CLINICIAN TRIAGE) */}
-          <Route
-            path="/doctor-review"
-            element={
-              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
-                <DoctorReview />
-              </RoleRoute>
-            }
-          />
-          <Route
-            path="/doctor/dashboard"
-            element={
-              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
-                <DoctorReview />
-              </RoleRoute>
-            }
-          />
-
-          {/* STAFF & CLINICAL PATIENTS ROSTER */}
+          {/* ================= STAFF & CLINICAL REGISTRY ================= */}
           <Route
             path="/patients"
             element={
@@ -82,7 +139,7 @@ function App() {
             }
           />
 
-          {/* PHC TELEMETRY DASHBOARD */}
+          {/* ================= PHC TELEMETRY DASHBOARD ================= */}
           <Route
             path="/dashboard"
             element={
@@ -108,7 +165,7 @@ function App() {
             }
           />
 
-          {/* PATIENT TELE-HEALTH PORTAL */}
+          {/* ================= PATIENT PORTAL ================= */}
           <Route
             path="/patient-portal"
             element={
@@ -126,7 +183,7 @@ function App() {
             }
           />
 
-          {/* PATIENT ID LOOKUP */}
+          {/* ================= SCREENING WORKFLOW ================= */}
           <Route
             path="/patient-id"
             element={
@@ -135,8 +192,6 @@ function App() {
               </RoleRoute>
             }
           />
-
-          {/* SCREENING INITIATION */}
           <Route
             path="/screening"
             element={
@@ -145,8 +200,6 @@ function App() {
               </RoleRoute>
             }
           />
-
-          {/* AI ANALYSIS EXECUTION */}
           <Route
             path="/analysis"
             element={
@@ -155,8 +208,6 @@ function App() {
               </RoleRoute>
             }
           />
-
-          {/* AI RESULTS & EXPLAINABILITY */}
           <Route
             path="/results"
             element={
@@ -165,8 +216,6 @@ function App() {
               </RoleRoute>
             }
           />
-
-          {/* CLINICAL REPORT GENERATION */}
           <Route
             path="/report"
             element={
@@ -176,10 +225,8 @@ function App() {
             }
           />
 
-          {/* ROOT → LOGIN */}
+          {/* ================= ROOT & REDIRECTS ================= */}
           <Route path="/" element={<Navigate to="/login" replace />} />
-
-          {/* UNKNOWN URL */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>

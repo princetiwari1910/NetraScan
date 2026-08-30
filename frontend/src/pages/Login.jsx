@@ -214,10 +214,26 @@ function Login() {
               </button>
             </form>
 
-            {/* Security */}
-            <div className="login-card-footer">
-              <ShieldCheck size={15} />
-              <span>Secure healthcare screening environment</span>
+            {/* Security & Doctor Link */}
+            <div className="login-card-footer" style={{ flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <ShieldCheck size={15} />
+                <span>Secure healthcare screening environment</span>
+              </div>
+              <Link
+                to="/doctor/login"
+                style={{
+                  color: "#FB923C",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                🩺 Ophthalmologist Login Portal →
+              </Link>
             </div>
           </section>
         </div>
