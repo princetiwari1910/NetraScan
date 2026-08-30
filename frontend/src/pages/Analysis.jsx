@@ -24,6 +24,9 @@ import {
   RefreshCw,
   LogIn,
   Users,
+  CheckCircle2,
+  Clock,
+  FileCheck,
 } from "lucide-react";
 
 function Analysis() {
@@ -38,39 +41,63 @@ function Analysis() {
     user,
   } = useScreening();
 
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [progress, setProgress] = useState(15);
+  const [activeStageIndex, setActiveStageIndex] = useState(3); // Stage 3: AI retinal analysis
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [errorState, setErrorState] = useState(null); // { type, title, message, action, details }
   const [isProcessing, setIsProcessing] = useState(false);
   const isAnalyzing = useRef(false);
 
-  const steps = [
+  // Clinical Diagnostic Pipeline Steps
+  const pipelineSteps = [
     {
-      icon: ShieldCheck,
-      title: "Strict Fundus Anatomy & Quality Gate",
-      description: "Anatomical chromaticity, FOV integrity, and Laplacian blur validation.",
+      id: "upload",
+      label: "Image uploaded",
+      description: "High-resolution fundus scan buffered for analysis",
+      isCompleted: true,
     },
     {
-      icon: Sparkles,
-      title: "CLAHE Preprocessing",
-      description: "Channel-wise contrast normalization matching MATLAB pipeline.",
+      id: "validation",
+      label: "Fundus image validation",
+      description: "Anatomical chromaticity and FOV integrity verified",
+      isCompleted: activeStageIndex >= 1,
     },
     {
-      icon: Eye,
-      title: "Deep Learning Feature Extraction",
-      description: "5-Class ICDR classification via NetraScan ResNet-18 ONNX engine.",
+      id: "preprocess",
+      label: "Image preprocessing",
+      description: "Channel-wise CLAHE contrast enhancement completed",
+      isCompleted: activeStageIndex >= 2,
     },
     {
-      icon: Activity,
-      title: "Lesion Localization & Softmax Triage",
-      description: "Biomarker detection and calibrated 0.35 referral decision logic.",
+      id: "inference",
+      label: "AI retinal analysis",
+      description: "Evaluating diabetic retinopathy features via ResNet-18",
+      isCurrent: activeStageIndex === 3,
+      isCompleted: activeStageIndex >= 4,
     },
     {
-      icon: Brain,
-      title: "Grad-CAM Explainability",
-      description: "Feature activation heatmap generation on res5b_relu layer.",
+      id: "findings",
+      label: "Clinical findings",
+      description: "Softmax lesion triage and ICDR stage classification",
+      isCompleted: activeStageIndex >= 4,
+    },
+    {
+      id: "report",
+      label: "Report generation",
+      description: "Compiling explainable findings and Grad-CAM heatmap",
+      isCompleted: activeStageIndex >= 5,
     },
   ];
+
+  // Dynamic progress subtitle based on elapsed time
+  const getProcessingSubtitle = () => {
+    if (elapsedSeconds < 10) {
+      return "NetraScan AI is processing the fundus photograph.";
+    }
+    if (elapsedSeconds < 25) {
+      return "Starting AI inference engine… This may take a few seconds.";
+    }
+    return "AI analysis is taking a little longer than usual. Please keep this page open.";
+  };
 
   const runInferencePipeline = async () => {
     if (!image) {
@@ -82,20 +109,12 @@ function Analysis() {
     isAnalyzing.current = true;
     setIsProcessing(true);
     setErrorState(null);
-    setProgress(15);
-    setCurrentStepIndex(0);
+    setActiveStageIndex(3);
+    setElapsedSeconds(0);
 
-    // Continuous smooth progression during live backend inference
-    const progressTimer = setInterval(() => {
-      setProgress((prev) => {
-        if (prev < 90) {
-          const next = prev + 5;
-          setCurrentStepIndex(Math.min(steps.length - 1, Math.floor(next / 20)));
-          return next;
-        }
-        return prev;
-      });
-    }, 200);
+    const timer = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
 
     try {
       let resolvedPatientId = null;
@@ -147,15 +166,15 @@ function Analysis() {
             }));
           }
         } catch (patLookupErr) {
-          console.warn("[NetraScan] Patient lookup warning:", patLookupErr.message);
+          console.warn("[NetraScan] Patient resolution notice:", patLookupErr.message);
         }
       }
 
-      console.log("[NetraScan] Initiating screening request:", {
+      console.log("[NetraScan] Dispatching AI screening request:", {
         patient_id: resolvedPatientId,
         examined_eye: patient?.examined_eye || "OD - Right Eye",
-        image_name: image?.name,
-        image_size: image?.size,
+        file_name: image?.name,
+        file_size: image?.size,
       });
 
       let result;
@@ -208,15 +227,14 @@ function Analysis() {
         result = await analyzeRetinalImage(image);
       }
 
-      clearInterval(progressTimer);
-      setProgress(100);
-      setCurrentStepIndex(steps.length);
+      clearInterval(timer);
+      setActiveStageIndex(5);
 
       if (result.status === "success") {
         setAnalysisResult(result);
         setTimeout(() => {
           navigate("/results");
-        }, 400);
+        }, 350);
       } else if (result.status === "invalid_fundus") {
         setAnalysisResult(result);
         setTimeout(() => {
@@ -236,8 +254,8 @@ function Analysis() {
         });
       }
     } catch (err) {
-      clearInterval(progressTimer);
-      console.error("[NetraScan] Screening Execution Error:", err);
+      clearInterval(timer);
+      console.error("[NetraScan] Screening Error:", err);
 
       // 1. Explicit Non-Fundus Image Gatekeeper Rejection (HTTP 400 with invalid_fundus)
       if (
@@ -277,7 +295,7 @@ function Analysis() {
         setErrorState({
           type: "AUTH_ERROR",
           title: "Authentication Required",
-          message: "Your login session has expired or token is missing. Please log in again to perform screening.",
+          message: "Your login session has expired. Please log in again to perform screening.",
           action: "login",
         });
         return;
@@ -288,7 +306,7 @@ function Analysis() {
         setErrorState({
           type: "FORBIDDEN",
           title: "Access Forbidden (Tenant Isolation)",
-          message: "You cannot screen a patient registered to a different Primary Health Centre.",
+          message: "You do not have authorization to screen a patient registered to a different Primary Health Centre.",
           action: "patients",
         });
         return;
@@ -309,10 +327,12 @@ function Analysis() {
       const isTimeout = err.name === "AbortError" || err.message?.toLowerCase().includes("timeout");
       setErrorState({
         type: isTimeout ? "TIMEOUT" : "SERVER_ERROR",
-        title: isTimeout ? "AI Inference Service Timed Out" : "NetraScan AI Connection Notice",
-        message:
-          err.message ||
-          "Unable to communicate with the NetraScan AI backend on Render. The server may be waking up or experiencing network delay. Please retry.",
+        title: isTimeout ? "AI Inference Service Timed Out" : "Unable to connect to the AI screening service",
+        message: isTimeout
+          ? "AI analysis took longer than expected to evaluate the image. Please retry."
+          : (err.message && !err.message.toLowerCase().includes("object"))
+          ? err.message
+          : "The NetraScan AI backend on Render did not respond. The service may be waking up from sleep. Click 'Retry Screening' to resubmit.",
         action: "retry",
       });
     } finally {
@@ -326,274 +346,389 @@ function Analysis() {
   }, []);
 
   return (
-    <div className="analysis-page">
+    <div className="analysis-page" style={{ minHeight: "100vh", background: "#F8FAFC" }}>
       {/* ================= NAVBAR ================= */}
-      <nav className="analysis-navbar">
+      <nav className="analysis-navbar" style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E8F0" }}>
         <div className="analysis-nav-container">
           <Link to="/home" className="analysis-logo">
             <div className="analysis-logo-icon">
               <ScanningEyeIcon size={24} />
             </div>
             <span>
-              Netra<span>Scan</span>
+              Netra<span style={{ color: "#2563EB" }}>Scan</span>
             </span>
           </Link>
 
-          <div className="analysis-nav-status">
-            <span className="analysis-status-dot"></span>
+          <div className="analysis-nav-status" style={{ background: "rgba(37, 99, 235, 0.08)", color: "#2563EB" }}>
+            <span className="analysis-status-dot" style={{ background: "#2563EB" }}></span>
             AI INFERENCE ACTIVE
           </div>
         </div>
       </nav>
 
       {/* ================= MAIN ================= */}
-      <main className="analysis-main">
-        {/* ================= HEADER ================= */}
-        <div className="analysis-header">
+      <main className="analysis-main" style={{ maxWidth: "1040px", margin: "0 auto", padding: "40px 20px" }}>
+        {/* ================= PATIENT HEADER ================= */}
+        <div
+          style={{
+            background: "#FFFFFF",
+            borderRadius: "14px",
+            border: "1px solid #E2E8F0",
+            padding: "20px 24px",
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "16px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+          }}
+        >
           <div>
-            <span className="analysis-label">AI DIAGNOSTIC ENGINE</span>
-            <h1>Evaluating Retinal Scan</h1>
-            <p>
-              Processing fundus photograph through the strict anatomical quality gate, CLAHE normalization, and MATLAB ResNet-18 neural network.
-            </p>
+            <span style={{ fontSize: "11px", fontWeight: "700", letterSpacing: "0.08em", color: "#64748B", textTransform: "uppercase" }}>
+              CURRENT PATIENT
+            </span>
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#0F172A", margin: "2px 0 4px 0" }}>
+              {patient?.name || patient?.full_name || "Screening Patient"}
+            </h2>
+            <div style={{ display: "flex", gap: "12px", fontSize: "13px", color: "#64748B", flexWrap: "wrap" }}>
+              <span>UID: <strong style={{ color: "#334155" }}>{patient?.patient_uid || (patient?.id ? `ID #${patient.id}` : "Registered")}</strong></span>
+              <span>•</span>
+              <span>Age: <strong style={{ color: "#334155" }}>{patient?.age || "52"} yrs</strong> ({patient?.gender || "Female"})</span>
+              <span>•</span>
+              <span>Eye: <strong style={{ color: "#2563EB" }}>{patient?.examined_eye || "OD - Right Eye"}</strong></span>
+            </div>
           </div>
 
-          {/* Steps */}
-          <div className="analysis-steps">
-            <div className="analysis-step done">
-              <CircleCheck size={16} />
-              Image Upload
-            </div>
-            <div className="analysis-step-line done"></div>
-            <div className="analysis-step active">
-              <LoaderCircle size={16} className="spin" />
-              AI Analysis
-            </div>
-            <div className="analysis-step-line"></div>
-            <div className="analysis-step">
-              <span>3</span>
-              Results
-            </div>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 14px",
+              borderRadius: "8px",
+              background: "#F1F5F9",
+              color: "#334155",
+              fontSize: "13px",
+              fontWeight: "600",
+              border: "1px solid #CBD5E1",
+            }}
+          >
+            <Sparkles size={16} color="#2563EB" />
+            ResNet-18 ONNX Engine
           </div>
         </div>
 
-        {/* ================= CARD ================= */}
-        <div className="analysis-card">
-          {/* Top */}
-          <div className="analysis-card-top">
-            <div className="analysis-card-meta">
-              <span className="analysis-card-label">CURRENT PATIENT</span>
-              <h3>{patient?.name || patient?.full_name || "Screening Patient"}</h3>
-              <p>
-                Patient UID: {patient?.patient_uid || (patient?.id ? `ID #${patient.id}` : "Pending Registration")} • Age: {patient?.age || "52"} yrs • Eye: {patient?.examined_eye || "OD - Right Eye"}
-              </p>
+        {/* ================= DIAGNOSTIC PROCESSING CONTAINER ================= */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1.35fr",
+            gap: "24px",
+            alignItems: "stretch",
+          }}
+          className="analysis-content-grid"
+        >
+          {/* LEFT: CRISP FUNDUS IMAGE PREVIEW */}
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: "14px",
+              border: "1px solid #E2E8F0",
+              padding: "20px",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Retinal Fundus Photograph
+              </span>
+              <span style={{ fontSize: "12px", color: "#64748B" }}>
+                {image?.name || "fundus_scan.jpg"}
+              </span>
             </div>
 
-            <div className="analysis-card-badge">
-              <Sparkles size={16} />
-              ResNet-18 ONNX Engine
+            <div
+              style={{
+                flex: 1,
+                minHeight: "320px",
+                background: "#000000",
+                borderRadius: "10px",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                position: "relative",
+              }}
+            >
+              {preview ? (
+                <img
+                  src={preview}
+                  alt="Uploaded Retinal Fundus"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    maxHeight: "380px",
+                    objectFit: "contain",
+                    display: "block",
+                  }}
+                />
+              ) : (
+                <div style={{ color: "#94A3B8", fontSize: "14px" }}>No image available</div>
+              )}
+
+              {/* Subtle Scanning Line Animation */}
+              {!errorState && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: "2px",
+                    background: "linear-gradient(90deg, transparent, #38BDF8, #2563EB, transparent)",
+                    boxShadow: "0 0 12px #38BDF8",
+                    animation: "scanLine 2.5s ease-in-out infinite",
+                  }}
+                />
+              )}
+            </div>
+
+            <div style={{ marginTop: "14px", display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", color: "#64748B" }}>
+              <CheckCircle2 size={15} color="#10B981" />
+              <span>Optic field and macular region buffered for evaluation</span>
             </div>
           </div>
 
-          {/* Preview & Progress */}
-          <div className="analysis-view-grid">
-            {/* Image Preview */}
-            <div className="analysis-preview-box">
-              {preview ? (
-                <img src={preview} alt="Retina Fundus Scan" />
-              ) : (
-                <div className="analysis-no-preview">No scan available</div>
-              )}
-              <div className="analysis-preview-overlay">
-                <span>{image?.name || "fundus_scan.jpg"}</span>
-              </div>
-            </div>
-
-            {/* Pipeline Stage List */}
-            <div className="analysis-pipeline">
-              <div className="analysis-progress-wrapper">
-                <div className="analysis-progress-header">
-                  <span>Diagnostic Pipeline Execution</span>
-                  <strong>{progress}%</strong>
-                </div>
-                <div className="analysis-progress-bar">
-                  <div
-                    className="analysis-progress-fill"
-                    style={{ width: `${progress}%` }}
-                  ></div>
-                </div>
+          {/* RIGHT: CENTERED DIAGNOSTIC PROCESSING CARD */}
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: "14px",
+              border: "1px solid #E2E8F0",
+              padding: "28px 24px",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+            }}
+          >
+            {/* Header / State Title */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                {!errorState ? (
+                  <LoaderCircle size={22} color="#2563EB" className="spin" />
+                ) : (
+                  <AlertTriangle size={22} color="#EF4444" />
+                )}
+                <h3 style={{ fontSize: "18px", fontWeight: "700", color: errorState ? "#EF4444" : "#0F172A", margin: 0 }}>
+                  {errorState ? errorState.title : "Analyzing retinal image"}
+                </h3>
               </div>
 
-              <div className="analysis-stage-list">
-                {steps.map((step, index) => {
-                  const Icon = step.icon;
-                  const isDone = index < currentStepIndex;
-                  const isCurrent = index === currentStepIndex;
+              <p style={{ fontSize: "14px", color: "#64748B", margin: "0 0 20px 0", lineHeight: "1.5" }}>
+                {errorState ? errorState.message : getProcessingSubtitle()}
+              </p>
 
+              {/* PIPELINE STEPS LIST */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {pipelineSteps.map((step, idx) => {
                   return (
                     <div
-                      key={index}
-                      className={`analysis-stage-item ${
-                        isDone ? "done" : isCurrent ? "current" : "pending"
-                      }`}
+                      key={step.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "12px",
+                        padding: "10px 14px",
+                        borderRadius: "10px",
+                        background: step.isCurrent
+                          ? "rgba(37, 99, 235, 0.06)"
+                          : step.isCompleted
+                          ? "rgba(16, 185, 129, 0.04)"
+                          : "#F8FAFC",
+                        border: `1px solid ${
+                          step.isCurrent
+                            ? "rgba(37, 99, 235, 0.3)"
+                            : step.isCompleted
+                            ? "rgba(16, 185, 129, 0.2)"
+                            : "#E2E8F0"
+                        }`,
+                        transition: "all 0.3s ease",
+                      }}
                     >
-                      <div className="analysis-stage-icon">
-                        {isDone ? (
-                          <CircleCheck size={18} />
-                        ) : isCurrent ? (
-                          <LoaderCircle size={18} className="spin" />
+                      {/* Step Indicator */}
+                      <div
+                        style={{
+                          marginTop: "2px",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {step.isCompleted ? (
+                          <CheckCircle2 size={17} color="#10B981" />
+                        ) : step.isCurrent ? (
+                          <LoaderCircle size={17} color="#2563EB" className="spin" />
                         ) : (
-                          <Icon size={18} />
+                          <span
+                            style={{
+                              width: "16px",
+                              height: "16px",
+                              borderRadius: "50%",
+                              border: "1.5px solid #CBD5E1",
+                              display: "inline-block",
+                            }}
+                          />
                         )}
                       </div>
 
-                      <div className="analysis-stage-text">
-                        <strong>{step.title}</strong>
-                        <span>{step.description}</span>
+                      {/* Step Text */}
+                      <div style={{ flex: 1 }}>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: step.isCurrent ? "700" : "600",
+                            color: step.isCurrent ? "#2563EB" : step.isCompleted ? "#0F172A" : "#64748B",
+                          }}
+                        >
+                          {step.label}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#64748B", marginTop: "1px" }}>
+                          {step.description}
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-          </div>
 
-          {/* Structured Error Banner if Network / Server / Auth Failure */}
-          {errorState && (
-            <div
-              style={{
-                marginTop: "24px",
-                padding: "20px",
-                borderRadius: "12px",
-                border: "1px solid rgba(239, 68, 68, 0.4)",
-                background: "rgba(239, 68, 68, 0.06)",
-                display: "flex",
-                gap: "16px",
-                alignItems: "flex-start",
-              }}
-            >
+            {/* Bottom Actions if Error */}
+            {errorState && (
               <div
                 style={{
-                  background: "rgba(239, 68, 68, 0.15)",
-                  color: "#EF4444",
-                  padding: "10px",
-                  borderRadius: "10px",
+                  marginTop: "20px",
+                  paddingTop: "16px",
+                  borderTop: "1px solid #E2E8F0",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
+                  gap: "10px",
+                  flexWrap: "wrap",
                 }}
               >
-                <AlertTriangle size={24} />
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <h4 style={{ margin: "0 0 6px 0", fontSize: "16px", color: "#EF4444", fontWeight: "700" }}>
-                  {errorState.title}
-                </h4>
-                <p style={{ margin: "0 0 14px 0", fontSize: "14px", color: "#334155", lineHeight: "1.5" }}>
-                  {errorState.message}
-                </p>
-
-                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                  {errorState.action === "retry" && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        isAnalyzing.current = false;
-                        runInferencePipeline();
-                      }}
-                      disabled={isProcessing}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        background: "#2563EB",
-                        color: "#FFFFFF",
-                        border: "none",
-                        fontWeight: "600",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <RefreshCw size={14} />
-                      Retry Screening
-                    </button>
-                  )}
-
-                  {errorState.action === "login" && (
-                    <button
-                      type="button"
-                      onClick={() => navigate("/login")}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        background: "#2563EB",
-                        color: "#FFFFFF",
-                        border: "none",
-                        fontWeight: "600",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <LogIn size={14} />
-                      Go to Login
-                    </button>
-                  )}
-
-                  {errorState.action === "patients" && (
-                    <button
-                      type="button"
-                      onClick={() => navigate("/patients")}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        padding: "8px 16px",
-                        borderRadius: "8px",
-                        background: "#2563EB",
-                        color: "#FFFFFF",
-                        border: "none",
-                        fontWeight: "600",
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <Users size={14} />
-                      Select Patient
-                    </button>
-                  )}
-
+                {errorState.action === "retry" && (
                   <button
                     type="button"
-                    onClick={() => navigate("/screening")}
+                    onClick={() => {
+                      isAnalyzing.current = false;
+                      runInferencePipeline();
+                    }}
+                    disabled={isProcessing}
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
                       gap: "6px",
-                      padding: "8px 16px",
+                      padding: "9px 18px",
                       borderRadius: "8px",
-                      background: "#F1F5F9",
-                      color: "#475569",
-                      border: "1px solid #CBD5E1",
+                      background: "#2563EB",
+                      color: "#FFFFFF",
+                      border: "none",
                       fontWeight: "600",
                       fontSize: "13px",
                       cursor: "pointer",
                     }}
                   >
-                    <RotateCcw size={14} />
-                    Back to Upload
+                    <RefreshCw size={15} />
+                    Retry Screening
                   </button>
-                </div>
+                )}
+
+                {errorState.action === "login" && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/login")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "9px 18px",
+                      borderRadius: "8px",
+                      background: "#2563EB",
+                      color: "#FFFFFF",
+                      border: "none",
+                      fontWeight: "600",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <LogIn size={15} />
+                    Go to Login
+                  </button>
+                )}
+
+                {errorState.action === "patients" && (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/patients")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "9px 18px",
+                      borderRadius: "8px",
+                      background: "#2563EB",
+                      color: "#FFFFFF",
+                      border: "none",
+                      fontWeight: "600",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Users size={15} />
+                    Select Patient
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/screening")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "9px 18px",
+                    borderRadius: "8px",
+                    background: "#F1F5F9",
+                    color: "#475569",
+                    border: "1px solid #CBD5E1",
+                    fontWeight: "600",
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <RotateCcw size={15} />
+                  Back to Upload
+                </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+
+        {/* Inline CSS animation for scanning line and responsive styling */}
+        <style>{`
+          @keyframes scanLine {
+            0% { top: 0%; opacity: 0.8; }
+            50% { top: 98%; opacity: 1; }
+            100% { top: 0%; opacity: 0.8; }
+          }
+          @media (max-width: 768px) {
+            .analysis-content-grid {
+              grid-template-columns: 1fr !important;
+            }
+          }
+        `}</style>
       </main>
     </div>
   );

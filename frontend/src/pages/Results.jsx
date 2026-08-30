@@ -822,7 +822,7 @@ function Results() {
                 style={{ background: "#2563EB", color: "#FFFFFF" }}
               >
                 <FileText size={17} />
-                View Clinical Report (HTML)
+                View Report
               </button>
 
               {screeningId && (
