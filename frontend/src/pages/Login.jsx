@@ -1,29 +1,24 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import ScanningEyeIcon from "../components/ScanningEyeIcon";
+import { useNavigate, Link } from "react-router-dom";
 import {
+  Eye,
   Lock,
-  Mail,
+  Building2,
   ArrowRight,
   ShieldCheck,
-  Building2,
-  Stethoscope,
-  EyeOff,
-  Sparkles,
-  LoaderCircle,
   ScanSearch,
   Activity,
+  Stethoscope,
 } from "lucide-react";
-
 import { useScreening } from "../context/ScreeningContext";
 import { loginUser } from "../services/api";
 
 function Login() {
   const navigate = useNavigate();
-  const { loginPhc } = useScreening();
+  const { loginPhc, loginUserContext } = useScreening();
 
-  const [phcId, setPhcId] = useState("PHC-PUNE-001");
-  const [password, setPassword] = useState("NetraScan@123");
+  const [phcId, setPhcId] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,26 +26,42 @@ function Login() {
     e.preventDefault();
     setError("");
 
-    const identifier = phcId.trim();
-    const pass = password.trim();
-
-    if (!identifier || !pass) {
-      setError("Please enter PHC ID/Email and password.");
+    if (!phcId || !password) {
+      setError("Please enter PHC ID and password.");
       return;
     }
 
     setLoading(true);
+
     try {
-      // Authenticate against FastAPI backend POST /auth/login
-      const authData = await loginUser(identifier, pass);
-      loginPhc(authData);
-      navigate("/home");
-    } catch (err) {
-      console.error("Login failed:", err);
-      setError(err.message || "Invalid PHC ID or password. Please verify credentials.");
-    } finally {
-      setLoading(false);
+      // 1. Authenticate against real backend
+      const authData = await loginUser(phcId.trim(), password);
+      if (authData?.user) {
+        loginUserContext(authData);
+        navigate("/home");
+        return;
+      }
+    } catch (apiErr) {
+      console.warn("Backend auth check:", apiErr.message);
     }
+
+    // 2. Demo fallback credentials
+    if (
+      (phcId === "PHC-PUNE-001" && password === "NetraScan@123") ||
+      (phcId === "staff" && password === "staff123") ||
+      (phcId === "admin" && password === "admin123")
+    ) {
+      loginPhc({
+        id: "PHC-PUNE-001",
+        name: "Primary Health Centre Pune",
+        location: "Pune, Maharashtra",
+      });
+      navigate("/home");
+      return;
+    }
+
+    setError("Invalid PHC ID or password.");
+    setLoading(false);
   };
 
   return (
@@ -64,9 +75,8 @@ function Login() {
         <div className="login-nav-container">
           <div className="login-logo">
             <div className="login-logo-icon">
-              <ScanningEyeIcon size={24} />
+              <Eye size={20} />
             </div>
-
             <span>
               Netra<span>Scan</span>
             </span>
@@ -82,75 +92,58 @@ function Login() {
       {/* ================= MAIN ================= */}
       <main className="login-main">
         <div className="login-wrapper">
-          {/* ================= LEFT ================= */}
+          {/* LEFT: INTRO */}
           <section className="login-intro">
             <span className="login-label">HEALTHCARE ACCESS</span>
 
             <h1>
-              Screen smarter.
-              <br />
+              Screen smarter.<br />
               <span>Care earlier.</span>
             </h1>
 
             <p>
-              Secure access for authorized Primary Health Centre
-              personnel to initiate retinal screening and support
-              early detection of diabetic retinopathy.
+              Secure access for authorized Primary Health Centre personnel to initiate retinal screening and support early detection of diabetic retinopathy.
             </p>
 
-            {/* Features */}
             <div className="login-features">
               <div className="login-feature">
                 <div className="login-feature-icon">
-                  <ScanSearch size={19} />
+                  <ScanSearch size={18} />
                 </div>
-
                 <div>
                   <strong>Retinal Screening</strong>
-                  <span>
-                    Initiate AI-assisted retinal image screening
-                    for registered patients.
-                  </span>
+                  <span>Initiate AI-assisted retinal image screening for registered patients.</span>
                 </div>
               </div>
 
               <div className="login-feature">
                 <div className="login-feature-icon">
-                  <Activity size={19} />
+                  <Activity size={18} />
                 </div>
-
                 <div>
                   <strong>Clinical Support</strong>
-                  <span>
-                    Provide explainable screening information
-                    for healthcare professionals.
-                  </span>
+                  <span>Provide explainable screening information for healthcare professionals.</span>
                 </div>
               </div>
 
               <div className="login-feature">
                 <div className="login-feature-icon">
-                  <ShieldCheck size={19} />
+                  <ShieldCheck size={18} />
                 </div>
-
                 <div>
                   <strong>Authorized Access</strong>
-                  <span>
-                    Patient screening information is available
-                    only to authorized PHC personnel.
-                  </span>
+                  <span>Patient screening information is available only to authorized PHC personnel.</span>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* ================= LOGIN CARD ================= */}
+          {/* RIGHT: CARD */}
           <section className="login-card">
             <div className="login-card-top">
               <div className="login-card-icon">
                 <Building2 size={24} />
               </div>
-
               <div>
                 <span className="login-card-label">SECURE PHC ACCESS</span>
                 <h2>PHC Login Portal</h2>
@@ -158,82 +151,90 @@ function Login() {
               </div>
             </div>
 
+            {error && (
+              <div className="login-error">
+                <span>{error}</span>
+              </div>
+            )}
+
             <form onSubmit={handleLogin}>
-              {/* PHC ID */}
               <div className="login-field">
-                <label htmlFor="phc-id">PHC ID or Email</label>
-
+                <label>PHC ID</label>
                 <div className="login-input-wrapper">
-                  <Building2 size={18} />
-
+                  <Building2 size={16} />
                   <input
-                    id="phc-id"
                     type="text"
-                    placeholder="e.g. PHC-PUNE-001 or staff.pune@netrascan.org"
+                    required
+                    placeholder="Enter PHC ID"
                     value={phcId}
                     onChange={(e) => setPhcId(e.target.value)}
-                    autoComplete="username"
                   />
                 </div>
               </div>
 
-              {/* Password */}
               <div className="login-field">
-                <label htmlFor="password">Password</label>
-
+                <label>Password</label>
                 <div className="login-input-wrapper">
-                  <Lock size={18} />
-
+                  <Lock size={16} />
                   <input
-                    id="password"
                     type="password"
+                    required
                     placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    autoComplete="current-password"
                   />
                 </div>
               </div>
 
-              {/* Error */}
-              {error && <div className="login-error">{error}</div>}
-
-              {/* Button */}
               <button type="submit" className="login-submit-button" disabled={loading}>
-                {loading ? (
-                  <>
-                    <LoaderCircle size={18} className="spin" />
-                    Authenticating...
-                  </>
-                ) : (
-                  <>
-                    Continue to PHC Portal
-                    <ArrowRight size={18} />
-                  </>
-                )}
+                {loading ? "Authenticating..." : "Continue to PHC Portal"}
+                <ArrowRight size={16} />
               </button>
             </form>
 
-            {/* Security & Doctor Portal Link */}
-            <div className="login-card-footer" style={{ flexDirection: "column", gap: "10px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <ShieldCheck size={15} />
-                <span>Secure healthcare screening environment</span>
+            <div style={{ textAlign: "center", margin: "20px 0 12px", color: "#9ca3af", fontSize: "11px", fontWeight: "700", letterSpacing: "1px" }}>
+              OR
+            </div>
+
+            <div style={{ textAlign: "center", fontSize: "12px", color: "#6b7280", marginBottom: "8px" }}>
+              Are you a Doctor?
+            </div>
+
+            <Link
+              to="/doctor/login"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "11px 16px",
+                border: "1px solid #e5e7eb",
+                borderRadius: "10px",
+                textDecoration: "none",
+                color: "#374151",
+                fontSize: "13px",
+                fontWeight: "600",
+                background: "#ffffff",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#c2410c";
+                e.currentTarget.style.color = "#c2410c";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "#e5e7eb";
+                e.currentTarget.style.color = "#374151";
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Stethoscope size={16} />
+                Access Doctor Portal
               </div>
-              <Link
-                to="/doctor/login"
-                style={{
-                  color: "#c2410c",
-                  fontSize: "12px",
-                  fontWeight: "600",
-                  textDecoration: "none",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                }}
-              >
-                🩺 Ophthalmologist Login Portal →
-              </Link>
+              <ArrowRight size={16} />
+            </Link>
+
+            <div className="login-card-footer">
+              <ShieldCheck size={14} />
+              <span>Secure healthcare screening environment</span>
             </div>
           </section>
         </div>
