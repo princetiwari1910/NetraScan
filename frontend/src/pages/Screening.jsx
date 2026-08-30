@@ -16,9 +16,10 @@ import {
   Activity,
   Users,
   UserPlus,
+  LoaderCircle,
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchPatients } from "../services/api";
+import { fetchPatients, createPatient } from "../services/api";
 
 function Screening() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ function Screening() {
   const [error, setError] = useState("");
   const [patientList, setPatientList] = useState([]);
   const [mode, setMode] = useState("new"); // "new" | "existing"
+  const [submitting, setSubmitting] = useState(false);
 
   // Fetch existing patient cohort from PostgreSQL
   useEffect(() => {
@@ -125,22 +127,50 @@ function Screening() {
   // ============================================
   // CONTINUE
   // ============================================
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!image) {
       setError("Please upload a retinal fundus image first.");
       return;
     }
 
-    if (!patient?.name && !patient?.full_name && !patient?.id) {
-      // Default to Screening Patient if blank
-      setPatient((prev) => ({
-        ...prev,
-        name: prev.name || prev.full_name || "Screening Patient",
-        full_name: prev.name || prev.full_name || "Screening Patient",
-      }));
-    }
+    setSubmitting(true);
+    setError("");
 
-    navigate("/analysis");
+    try {
+      let currentPat = { ...patient };
+
+      // If in new patient mode or patient.id is not a registered integer, register with backend immediately
+      if (!currentPat.id || typeof currentPat.id !== "number") {
+        const registered = await createPatient({
+          full_name: currentPat.name || currentPat.full_name || "Screening Patient",
+          age: parseInt(currentPat.age || "52", 10) || 52,
+          gender: currentPat.gender || "Female",
+          phone: currentPat.phone || "+91-9876543210",
+          diabetes_status: currentPat.diabetes_status || "Type 2",
+          diabetes_duration: currentPat.diabetes_duration || "5 years",
+          medical_notes: currentPat.medical_notes || "Screening intake via NetraScan portal.",
+        });
+
+        currentPat = {
+          ...currentPat,
+          id: registered.id,
+          patient_uid: registered.patient_uid,
+          full_name: registered.full_name,
+          name: registered.full_name,
+          age: registered.age,
+          gender: registered.gender,
+        };
+        setPatient(currentPat);
+      }
+
+      navigate("/analysis");
+    } catch (patErr) {
+      console.warn("Patient registration pre-check:", patErr.message);
+      // Still navigate so Analysis can attempt resolution
+      navigate("/analysis");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -504,9 +534,19 @@ function Screening() {
             type="button"
             className="continue-button"
             onClick={handleContinue}
+            disabled={submitting}
           >
-            Continue to AI Analysis
-            <ArrowRight size={18} />
+            {submitting ? (
+              <>
+                <LoaderCircle size={18} className="spin" />
+                Registering Patient...
+              </>
+            ) : (
+              <>
+                Continue to AI Analysis
+                <ArrowRight size={18} />
+              </>
+            )}
           </button>
         </div>
 

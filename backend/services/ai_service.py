@@ -217,14 +217,18 @@ class AIService:
         is_referable = bool(referable_prob >= REFERABLE_THRESHOLD)
         print(f"[PIPELINE TRACE] 6. REFERABLE DECISION: Sum(Grades 2,3,4)={referable_prob:.4f} >= {REFERABLE_THRESHOLD} -> {is_referable}")
 
-        # 6. Authentic Grad-CAM on res5b_relu Layer
-        gradcam_data_uri = self.gradcam_engine.generate_overlay_data_uri(
-            feature_maps=feature_maps,
-            original_rgb=orig_rgb,
-            target_class=predicted_grade,
-            alpha=0.45,
-        )
-        print(f"[PIPELINE TRACE] 7. GRAD-CAM: Generated from res5b_relu (Data URI Length: {len(gradcam_data_uri)} chars)")
+        # 6. Authentic Grad-CAM on res5b_relu Layer (safely isolated)
+        try:
+            gradcam_data_uri = self.gradcam_engine.generate_overlay_data_uri(
+                feature_maps=feature_maps,
+                original_rgb=orig_rgb,
+                target_class=predicted_grade,
+                alpha=0.45,
+            )
+            print(f"[PIPELINE TRACE] 7. GRAD-CAM: Generated from res5b_relu (Data URI Length: {len(gradcam_data_uri)} chars)")
+        except Exception as cam_err:
+            print(f"⚠️ [PIPELINE TRACE] Warning: Grad-CAM generation failed: {cam_err}")
+            gradcam_data_uri = ""
 
         # 7. Clinical Evidence Association
         evidence = ICDR_EVIDENCE_MAP.get(

@@ -40,7 +40,7 @@ function Analysis() {
 
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [progress, setProgress] = useState(15);
-  const [errorState, setErrorState] = useState(null); // { type, title, message, action }
+  const [errorState, setErrorState] = useState(null); // { type, title, message, action, details }
   const [isProcessing, setIsProcessing] = useState(false);
   const isAnalyzing = useRef(false);
 
@@ -95,7 +95,7 @@ function Analysis() {
         }
         return prev;
       });
-    }, 180);
+    }, 200);
 
     try {
       let resolvedPatientId = null;
@@ -130,9 +130,9 @@ function Analysis() {
             // 3. Auto-register new patient in PostgreSQL
             const newPat = await createPatient({
               full_name: patient?.full_name || patient?.name || "Screening Patient",
-              age: parseInt(patient?.age || "58", 10) || 58,
-              gender: patient?.gender || "Male",
-              phone: patient?.phone || "+91-9800000000",
+              age: parseInt(patient?.age || "52", 10) || 52,
+              gender: patient?.gender || "Female",
+              phone: patient?.phone || "+91-9876543210",
               diabetes_status: patient?.diabetes_status || "Type 2",
               diabetes_duration: patient?.diabetes_duration || "5 years",
               medical_notes: patient?.medical_notes || "Screening intake via NetraScan portal.",
@@ -147,9 +147,16 @@ function Analysis() {
             }));
           }
         } catch (patLookupErr) {
-          console.warn("Patient lookup warning:", patLookupErr.message);
+          console.warn("[NetraScan] Patient lookup warning:", patLookupErr.message);
         }
       }
+
+      console.log("[NetraScan] Initiating screening request:", {
+        patient_id: resolvedPatientId,
+        examined_eye: patient?.examined_eye || "OD - Right Eye",
+        image_name: image?.name,
+        image_size: image?.size,
+      });
 
       let result;
 
@@ -230,9 +237,9 @@ function Analysis() {
       }
     } catch (err) {
       clearInterval(progressTimer);
-      console.error("Screening Execution Error:", err);
+      console.error("[NetraScan] Screening Execution Error:", err);
 
-      // 1. Explicit Non-Fundus Image Gatekeeper Rejection
+      // 1. Explicit Non-Fundus Image Gatekeeper Rejection (HTTP 400 with invalid_fundus)
       if (
         err.errorCode === "INVALID_FUNDUS_IMAGE" ||
         err.status === "invalid_fundus" ||
@@ -251,7 +258,7 @@ function Analysis() {
         return;
       }
 
-      // 2. Explicit Quality / Blur Recapture
+      // 2. Explicit Quality / Blur Recapture (HTTP 422 with recapture_required)
       if (err.status === "recapture_required" || err.errorCode === "RECAPTURE_REQUIRED") {
         setAnalysisResult({
           status: "recapture_required",
@@ -265,18 +272,18 @@ function Analysis() {
         return;
       }
 
-      // 3. Authentication Error (401)
+      // 3. Authentication Error (HTTP 401)
       if (err.httpStatus === 401 || err.errorCode === "AUTH_ERROR") {
         setErrorState({
           type: "AUTH_ERROR",
           title: "Authentication Required",
-          message: "Your login session has expired or token is invalid. Please log in again to perform screening.",
+          message: "Your login session has expired or token is missing. Please log in again to perform screening.",
           action: "login",
         });
         return;
       }
 
-      // 4. Tenant Isolation / Forbidden (403)
+      // 4. Tenant Isolation / Forbidden (HTTP 403)
       if (err.httpStatus === 403 || err.errorCode === "FORBIDDEN") {
         setErrorState({
           type: "FORBIDDEN",
@@ -287,22 +294,25 @@ function Analysis() {
         return;
       }
 
-      // 5. Patient Not Found (404)
+      // 5. Patient Not Found (HTTP 404)
       if (err.httpStatus === 404) {
         setErrorState({
           type: "NOT_FOUND",
-          title: "Patient Not Found",
-          message: "The patient record was not found in the backend database. Please select or register a valid patient.",
+          title: "Patient Record Not Found",
+          message: "The patient record could not be found in the database. Please select or register a valid patient.",
           action: "patients",
         });
         return;
       }
 
-      // 6. Generic Server Error, 502, Timeout, or Network Failure
+      // 6. Generic Server / Network / Timeout Error
+      const isTimeout = err.name === "AbortError" || err.message?.toLowerCase().includes("timeout");
       setErrorState({
-        type: "SERVER_ERROR",
-        title: "NetraScan AI Connection Issue",
-        message: err.message || "Failed to communicate with NetraScan AI inference backend. Please check network connection and retry.",
+        type: isTimeout ? "TIMEOUT" : "SERVER_ERROR",
+        title: isTimeout ? "AI Inference Service Timed Out" : "NetraScan AI Connection Notice",
+        message:
+          err.message ||
+          "Unable to communicate with the NetraScan AI backend on Render. The server may be waking up or experiencing network delay. Please retry.",
         action: "retry",
       });
     } finally {
@@ -375,7 +385,7 @@ function Analysis() {
               <span className="analysis-card-label">CURRENT PATIENT</span>
               <h3>{patient?.name || patient?.full_name || "Screening Patient"}</h3>
               <p>
-                Patient UID: {patient?.patient_uid || "Pending Registration"} • Age: {patient?.age || "52"} yrs • Eye: {patient?.examined_eye || "OD - Right Eye"}
+                Patient UID: {patient?.patient_uid || (patient?.id ? `ID #${patient.id}` : "Pending Registration")} • Age: {patient?.age || "52"} yrs • Eye: {patient?.examined_eye || "OD - Right Eye"}
               </p>
             </div>
 
@@ -489,7 +499,10 @@ function Analysis() {
                   {errorState.action === "retry" && (
                     <button
                       type="button"
-                      onClick={runInferencePipeline}
+                      onClick={() => {
+                        isAnalyzing.current = false;
+                        runInferencePipeline();
+                      }}
                       disabled={isProcessing}
                       style={{
                         display: "inline-flex",
