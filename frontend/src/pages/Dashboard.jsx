@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import { fetchDashboardStats } from "../services/api";
-import ScanningEyeIcon from "../components/ScanningEyeIcon";
+import Navbar from "../components/Navbar";
 
 import {
   Eye,
@@ -41,55 +41,12 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="home-page" style={{ minHeight: "100vh", backgroundColor: "#0b1329", color: "#f8fafc" }}>
+    <div className="home-page" style={{ minHeight: "100vh", backgroundColor: "#07111F", color: "#f8fafc" }}>
       {/* NAVBAR */}
-      <nav className="navbar">
-        <div className="nav-container">
-          <Link to="/home" className="logo">
-            <div className="logo-icon">
-              <ScanningEyeIcon size={24} />
-            </div>
-            <span>
-              Netra<span className="logo-highlight">Scan</span>
-            </span>
-          </Link>
-
-          <div className="nav-links">
-            <Link to="/home" style={{ color: "#94a3b8", textDecoration: "none" }}>Home</Link>
-            <Link to="/dashboard" style={{ color: "#38bdf8", fontWeight: "600", textDecoration: "none" }}>PHC Dashboard</Link>
-            <Link to="/patients" style={{ color: "#94a3b8", textDecoration: "none" }}>Patients</Link>
-            {(user?.role === "DOCTOR" || user?.role === "SUPER_ADMIN") && (
-              <Link to="/doctor-review" style={{ color: "#fb923c", textDecoration: "none" }}>Doctor Review</Link>
-            )}
-          </div>
-
-          <div className="nav-actions">
-            <button
-              onClick={() => {
-                startNewScreening();
-                navigate("/screening");
-              }}
-              style={{
-                backgroundColor: "#2563eb",
-                color: "#ffffff",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "600",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-              }}
-            >
-              <Activity size={16} /> New Screening
-            </button>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* MAIN CONTENT */}
-      <div style={{ maxWidth: "1280px", margin: "32px auto", padding: "0 24px" }}>
+      <div style={{ maxWidth: "1360px", margin: "32px auto", padding: "0 24px" }}>
         {/* HEADER */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
           <div>

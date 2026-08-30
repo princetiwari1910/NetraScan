@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
 import { useScreening } from "../context/ScreeningContext";
 import { fetchScreenings, verifyScreening } from "../services/api";
-import ScanningEyeIcon from "../components/ScanningEyeIcon";
-
 import {
   Eye,
   CheckCircle2,
@@ -15,10 +14,25 @@ import {
   ChevronRight,
   Sparkles,
   Search,
+  FileText,
+  Activity,
+  AlertTriangle,
+  RotateCcw,
+  Check,
 } from "lucide-react";
 
+const ICDR_STAGES = [
+  { grade: 0, label: "Grade 0 - No DR", color: "#10B981" },
+  { grade: 1, label: "Grade 1 - Mild NPDR", color: "#F59E0B" },
+  { grade: 2, label: "Grade 2 - Moderate NPDR", color: "#F97316" },
+  { grade: 3, label: "Grade 3 - Severe NPDR", color: "#EF4444" },
+  { grade: 4, label: "Grade 4 - PDR", color: "#A855F7" },
+];
+
 export default function DoctorReview() {
-  const { user, phc } = useScreening();
+  const navigate = useNavigate();
+  const { user, setPatient, setAnalysisResult } = useScreening();
+  const [filterMode, setFilterMode] = useState("pending"); // "pending" | "all" | "referable"
   const [screenings, setScreenings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedScreening, setSelectedScreening] = useState(null);
@@ -27,11 +41,20 @@ export default function DoctorReview() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const loadPendingScreenings = async () => {
+  const loadScreenings = async () => {
     setLoading(true);
     try {
-      // Fetch unverified screenings for this PHC
-      const data = await fetchScreenings(false);
+      let data;
+      if (filterMode === "pending") {
+        data = await fetchScreenings(false);
+      } else {
+        data = await fetchScreenings(null);
+      }
+
+      if (filterMode === "referable") {
+        data = data.filter((s) => s.referable);
+      }
+
       setScreenings(data);
       if (data.length > 0) {
         handleSelectScreening(data[0]);
@@ -39,20 +62,23 @@ export default function DoctorReview() {
         setSelectedScreening(null);
       }
     } catch (err) {
-      console.error("Failed to fetch pending screenings:", err);
+      console.error("Failed to fetch screenings for doctor review:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPendingScreenings();
-  }, []);
+    loadScreenings();
+  }, [filterMode]);
 
   const handleSelectScreening = (s) => {
     setSelectedScreening(s);
-    setVerifiedGrade(s.predicted_grade);
-    setDoctorNotes(`AI prediction (Grade ${s.predicted_grade}) reviewed and clinically verified.`);
+    setVerifiedGrade(s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision : s.predicted_grade);
+    setDoctorNotes(
+      s.doctor_notes ||
+        `AI prediction (Grade ${s.predicted_grade} - ${s.severity_label}) reviewed and verified by Dr. ${user?.name || "Consultant"}.`
+    );
     setSuccessMessage("");
   };
 
@@ -63,9 +89,8 @@ export default function DoctorReview() {
     setSubmitting(true);
     try {
       await verifyScreening(selectedScreening.id, verifiedGrade, doctorNotes);
-      setSuccessMessage("Screening successfully verified and signed off by Doctor!");
-      // Reload pending queue
-      await loadPendingScreenings();
+      setSuccessMessage("Screening successfully verified and certified by Ophthalmologist!");
+      await loadScreenings();
     } catch (err) {
       alert(err.message || "Failed to submit verification.");
     } finally {
@@ -73,57 +98,174 @@ export default function DoctorReview() {
     }
   };
 
+  const handleOpenReport = (s) => {
+    setPatient({
+      id: s.patient_id,
+      patient_uid: s.patient_uid || "NS-2026-001",
+      full_name: s.patient_name || "Patient",
+      name: s.patient_name || "Patient",
+      age: s.patient_age || 58,
+      gender: s.patient_gender || "Male",
+      examined_eye: s.examined_eye || "OD - Right Eye",
+      location: s.phc_name || "Primary Health Centre",
+    });
+
+    setAnalysisResult({
+      status: "success",
+      dr_grade: s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision : s.predicted_grade,
+      severity_label: s.severity_label,
+      referable: s.referable,
+      confidence: s.confidence,
+      gradcam_image: s.gradcam_reference || "",
+      evidence: s.ai_evidence || [],
+      quality_metric: {
+        laplacian_variance: s.laplacian_variance,
+        is_blurry: false,
+        threshold: 35.0,
+        status: s.quality_status,
+      },
+    });
+
+    navigate("/report");
+  };
+
   return (
-    <div className="home-page" style={{ minHeight: "100vh", backgroundColor: "#0b1329", color: "#f8fafc" }}>
-      {/* NAVBAR */}
-      <nav className="navbar">
-        <div className="nav-container">
-          <Link to="/home" className="logo">
-            <div className="logo-icon">
-              <ScanningEyeIcon size={24} />
+    <div style={{ minHeight: "100vh", backgroundColor: "#07111F", color: "#F8FAFC" }}>
+      <Navbar />
+
+      <main style={{ maxWidth: "1360px", margin: "0 auto", padding: "32px 24px" }}>
+        {/* HEADER */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+              <span
+                style={{
+                  background: "rgba(251, 146, 60, 0.15)",
+                  color: "#FB923C",
+                  border: "1px solid rgba(251, 146, 60, 0.3)",
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  fontSize: "11px",
+                  fontWeight: "700",
+                }}
+              >
+                OPHTHALMIC CLINICIAN PORTAL
+              </span>
             </div>
-            <span>
-              Netra<span className="logo-highlight">Scan</span>
-            </span>
-          </Link>
-
-          <div className="nav-links">
-            <Link to="/home" style={{ color: "#94a3b8", textDecoration: "none" }}>Home</Link>
-            <Link to="/dashboard" style={{ color: "#94a3b8", textDecoration: "none" }}>PHC Dashboard</Link>
-            <Link to="/patients" style={{ color: "#94a3b8", textDecoration: "none" }}>Patients</Link>
-            <Link to="/doctor-review" style={{ color: "#fb923c", fontWeight: "600", textDecoration: "none" }}>Doctor Review Queue</Link>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 6px 0", color: "#FB923C" }}>
+              Doctor Review Queue &amp; Clinical Verification
+            </h1>
+            <p style={{ color: "#94A3B8", fontSize: "14px", margin: 0 }}>
+              Examine live ONNX ResNet-18 model inferences, inspect Grad-CAM heatmaps, verify biomarkers, and sign off clinical decisions.
+            </p>
           </div>
-        </div>
-      </nav>
 
-      {/* CONTENT */}
-      <div style={{ maxWidth: "1280px", margin: "32px auto", padding: "0 24px" }}>
-        <div style={{ marginBottom: "24px" }}>
-          <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 8px 0", color: "#fb923c" }}>
-            Clinician Verification & Review Queue
-          </h1>
-          <p style={{ color: "#94a3b8", margin: 0 }}>
-            Review real-time AI model predictions, examine Grad-CAM explainability heatmaps, and provide certified clinical sign-offs.
-          </p>
+          {/* FILTER TABS */}
+          <div
+            style={{
+              display: "flex",
+              gap: "4px",
+              background: "#0D182E",
+              border: "1px solid #1E293B",
+              padding: "4px",
+              borderRadius: "8px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setFilterMode("pending")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                border: "none",
+                cursor: "pointer",
+                background: filterMode === "pending" ? "#FB923C" : "transparent",
+                color: filterMode === "pending" ? "#000" : "#94A3B8",
+              }}
+            >
+              Pending Review
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode("referable")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                border: "none",
+                cursor: "pointer",
+                background: filterMode === "referable" ? "#FB923C" : "transparent",
+                color: filterMode === "referable" ? "#000" : "#94A3B8",
+              }}
+            >
+              Referable Cases
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode("all")}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                fontWeight: "600",
+                border: "none",
+                cursor: "pointer",
+                background: filterMode === "all" ? "#FB923C" : "transparent",
+                color: filterMode === "all" ? "#000" : "#94A3B8",
+              }}
+            >
+              All Records
+            </button>
+          </div>
         </div>
 
         {loading ? (
-          <div style={{ padding: "60px", textAlign: "center", color: "#64748b" }}>Loading pending review queue...</div>
+          <div style={{ padding: "60px", textAlign: "center", color: "#64748B" }}>
+            Loading screening cases from database...
+          </div>
         ) : screenings.length === 0 ? (
-          <div style={{ padding: "60px", textAlign: "center", backgroundColor: "#131f3d", borderRadius: "12px", border: "1px solid #1e293b" }}>
-            <CheckCircle2 size={48} color="#4ade80" style={{ margin: "0 auto 16px auto" }} />
-            <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#f8fafc" }}>All Screenings Verified!</h2>
-            <p style={{ color: "#94a3b8" }}>There are no pending doctor reviews for {user?.phc_name || "your PHC"}.</p>
+          <div
+            style={{
+              padding: "60px",
+              textAlign: "center",
+              backgroundColor: "#0D182E",
+              borderRadius: "16px",
+              border: "1px solid #1E293B",
+            }}
+          >
+            <CheckCircle2 size={48} color="#10B981" style={{ margin: "0 auto 16px auto" }} />
+            <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#F8FAFC" }}>Review Queue Empty!</h2>
+            <p style={{ color: "#94A3B8" }}>There are no screening records matching the selected filter.</p>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "24px" }}>
-            {/* PENDING QUEUE */}
-            <div style={{ backgroundColor: "#131f3d", borderRadius: "12px", border: "1px solid #1e293b", padding: "20px" }}>
-              <h2 style={{ fontSize: "18px", fontWeight: "600", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Clock size={18} color="#fb923c" /> Pending Reviews ({screenings.length})
+            {/* QUEUE LIST */}
+            <div
+              style={{
+                backgroundColor: "#0D182E",
+                borderRadius: "16px",
+                border: "1px solid #1E293B",
+                padding: "20px",
+              }}
+            >
+              <h2
+                style={{
+                  fontSize: "16px",
+                  fontWeight: "700",
+                  marginBottom: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  color: "#F8FAFC",
+                }}
+              >
+                <Clock size={18} color="#FB923C" /> Triage Queue ({screenings.length} cases)
               </h2>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "650px", overflowY: "auto" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "680px", overflowY: "auto" }}>
                 {screenings.map((s) => {
                   const isSelected = selectedScreening?.id === s.id;
                   return (
@@ -132,20 +274,48 @@ export default function DoctorReview() {
                       onClick={() => handleSelectScreening(s)}
                       style={{
                         padding: "14px 16px",
-                        borderRadius: "8px",
-                        backgroundColor: isSelected ? "#1e293b" : "#0f172a",
-                        border: isSelected ? "1px solid #fb923c" : "1px solid #1e293b",
+                        borderRadius: "10px",
+                        backgroundColor: isSelected ? "rgba(251, 146, 60, 0.12)" : "#07111F",
+                        border: isSelected ? "1px solid #FB923C" : "1px solid #1E293B",
                         cursor: "pointer",
+                        transition: "all 0.15s ease",
                       }}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                        <strong style={{ color: isSelected ? "#fb923c" : "#f1f5f9" }}>{s.patient_name} ({s.patient_uid})</strong>
-                        <span style={{ fontSize: "12px", color: s.referable ? "#f87171" : "#4ade80", fontWeight: "600" }}>
-                          Grade {s.predicted_grade}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                        <strong style={{ fontSize: "14px", color: isSelected ? "#FB923C" : "#F8FAFC" }}>
+                          {s.patient_name || `Patient #${s.patient_id}`}
+                        </strong>
+                        <span
+                          style={{
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            padding: "2px 8px",
+                            borderRadius: "10px",
+                            background: s.doctor_verified
+                              ? "rgba(16, 185, 129, 0.2)"
+                              : s.referable
+                              ? "rgba(249, 115, 22, 0.2)"
+                              : "rgba(56, 189, 248, 0.2)",
+                            color: s.doctor_verified
+                              ? "#10B981"
+                              : s.referable
+                              ? "#FB923C"
+                              : "#38BDF8",
+                          }}
+                        >
+                          {s.doctor_verified ? "VERIFIED" : s.referable ? "REFERABLE" : "ROUTINE"}
                         </span>
                       </div>
-                      <div style={{ fontSize: "12px", color: "#94a3b8" }}>
-                        <span>Screened {new Date(s.screened_at).toLocaleDateString()}</span> • <span>Eye: {s.examined_eye}</span>
+
+                      <div style={{ fontSize: "12px", color: "#94A3B8", display: "flex", justifyContent: "space-between" }}>
+                        <span>
+                          Grade {s.predicted_grade} ({s.severity_label})
+                        </span>
+                        <span style={{ fontFamily: "monospace" }}>{(s.confidence * 100).toFixed(1)}% Conf</span>
+                      </div>
+
+                      <div style={{ fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
+                        {s.examined_eye} • {s.screening_uid} • {new Date(s.screened_at).toLocaleDateString()}
                       </div>
                     </div>
                   );
@@ -153,108 +323,270 @@ export default function DoctorReview() {
               </div>
             </div>
 
-            {/* REVIEW WORKBENCH */}
+            {/* DETAIL & VERIFICATION PANEL */}
             {selectedScreening && (
-              <div style={{ backgroundColor: "#131f3d", borderRadius: "12px", border: "1px solid #1e293b", padding: "24px" }}>
-                <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "16px", borderBottom: "1px solid #1e293b", paddingBottom: "12px" }}>
-                  Screening Case: {selectedScreening.screening_uid}
-                </h2>
-
-                {/* PATIENT & AI SUMMARY */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "20px" }}>
-                  <div style={{ backgroundColor: "#0f172a", padding: "12px", borderRadius: "8px" }}>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>Patient</div>
-                    <div style={{ fontWeight: "600" }}>{selectedScreening.patient_name} ({selectedScreening.patient_age} yrs, {selectedScreening.patient_gender})</div>
+              <div
+                style={{
+                  backgroundColor: "#0D182E",
+                  borderRadius: "16px",
+                  border: "1px solid #1E293B",
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "20px",
+                }}
+              >
+                {/* TOP META */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <span style={{ fontSize: "11px", color: "#94A3B8", fontWeight: "700" }}>
+                      SCREENING #{selectedScreening.screening_uid}
+                    </span>
+                    <h2 style={{ fontSize: "20px", fontWeight: "700", margin: "2px 0 4px 0" }}>
+                      {selectedScreening.patient_name || `Patient #${selectedScreening.patient_id}`}
+                    </h2>
+                    <p style={{ color: "#94A3B8", fontSize: "13px", margin: 0 }}>
+                      {selectedScreening.patient_age || 58} yrs • {selectedScreening.patient_gender || "Male"} • {selectedScreening.examined_eye} • {selectedScreening.phc_name || "PHC Centre"}
+                    </p>
                   </div>
-                  <div style={{ backgroundColor: "#0f172a", padding: "12px", borderRadius: "8px" }}>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>AI Model Prediction</div>
-                    <div style={{ fontWeight: "600", color: selectedScreening.referable ? "#f87171" : "#4ade80" }}>
-                      Grade {selectedScreening.predicted_grade}: {selectedScreening.severity_label} ({(selectedScreening.confidence * 100).toFixed(1)}%)
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenReport(selectedScreening)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: "rgba(255, 255, 255, 0.06)",
+                      border: "1px solid #334155",
+                      color: "#F8FAFC",
+                      padding: "8px 14px",
+                      borderRadius: "8px",
+                      fontSize: "13px",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <FileText size={15} />
+                    View Clinical Report
+                  </button>
+                </div>
+
+                {/* GRAD-CAM & AI PREDICTION BOX */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 1fr",
+                    gap: "16px",
+                    background: "#07111F",
+                    border: "1px solid #1E293B",
+                    borderRadius: "12px",
+                    padding: "16px",
+                  }}
+                >
+                  {/* Grad-CAM Preview */}
+                  <div style={{ textAlign: "center" }}>
+                    <span style={{ fontSize: "11px", color: "#94A3B8", display: "block", marginBottom: "6px" }}>
+                      res5b_relu Grad-CAM Attention Heatmap
+                    </span>
+                    <div
+                      style={{
+                        background: "#000",
+                        borderRadius: "8px",
+                        overflow: "hidden",
+                        minHeight: "180px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {selectedScreening.gradcam_reference ? (
+                        <img
+                          src={selectedScreening.gradcam_reference}
+                          alt="Grad-CAM"
+                          style={{ maxHeight: "200px", maxWidth: "100%", objectFit: "contain" }}
+                        />
+                      ) : (
+                        <span style={{ color: "#64748B", fontSize: "12px" }}>No Heatmap Image</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI Metrics */}
+                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "10px" }}>
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>AI PREDICTED ICDR GRADE</span>
+                      <strong style={{ fontSize: "20px", display: "block", color: "#FB923C" }}>
+                        Grade {selectedScreening.predicted_grade}
+                      </strong>
+                      <span style={{ fontSize: "12px", color: "#F8FAFC" }}>{selectedScreening.severity_label}</span>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>CONFIDENCE SCORE</span>
+                      <strong style={{ fontSize: "16px", display: "block", color: "#38BDF8", fontFamily: "monospace" }}>
+                        {(selectedScreening.confidence * 100).toFixed(1)}%
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>REFERRAL STATUS</span>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          marginTop: "2px",
+                          fontSize: "11px",
+                          fontWeight: "700",
+                          color: selectedScreening.referable ? "#FB923C" : "#10B981",
+                        }}
+                      >
+                        {selectedScreening.referable ? "⚠️ Referable (≥0.35 threshold)" : "✓ Non-Referable"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* GRAD-CAM VISUALIZATION */}
-                {selectedScreening.gradcam_reference && (
-                  <div style={{ marginBottom: "20px" }}>
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#38bdf8", marginBottom: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
-                      <Brain size={16} /> Authentic res5b_relu Grad-CAM Attention Heatmap
-                    </div>
-                    <div style={{ textAlign: "center", backgroundColor: "#000", borderRadius: "8px", padding: "12px" }}>
-                      <img
-                        src={selectedScreening.gradcam_reference}
-                        alt="Grad-CAM Overlay"
-                        style={{ maxHeight: "280px", maxWidth: "100%", borderRadius: "6px" }}
-                      />
+                {/* CLINICAL EVIDENCE CHECKLIST */}
+                {selectedScreening.ai_evidence && (
+                  <div>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#94A3B8", textTransform: "uppercase" }}>
+                      Biomarkers &amp; Diagnostic Findings
+                    </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
+                      {selectedScreening.ai_evidence.map((ev, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                            fontSize: "12px",
+                            color: "#CBD5E1",
+                            background: "rgba(255, 255, 255, 0.03)",
+                            padding: "6px 10px",
+                            borderRadius: "6px",
+                          }}
+                        >
+                          <Check size={13} color="#38BDF8" />
+                          <span>{ev}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
 
-                {/* DOCTOR SIGN-OFF FORM */}
-                <form onSubmit={handleVerifySubmit} style={{ borderTop: "1px solid #1e293b", paddingTop: "16px" }}>
-                  <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "12px" }}>Doctor Verification & Final Assessment</h3>
-
-                  <div style={{ marginBottom: "14px" }}>
-                    <label style={{ display: "block", fontSize: "13px", color: "#94a3b8", marginBottom: "6px" }}>
-                      Final Clinical DR Grade:
+                {/* VERIFICATION FORM */}
+                <form
+                  onSubmit={handleVerifySubmit}
+                  style={{
+                    borderTop: "1px solid #1E293B",
+                    paddingTop: "16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "14px",
+                  }}
+                >
+                  <div>
+                    <label style={{ fontSize: "12px", fontWeight: "700", color: "#F8FAFC", display: "block", marginBottom: "8px" }}>
+                      Ophthalmologist Final Certified Grade:
                     </label>
-                    <select
-                      value={verifiedGrade}
-                      onChange={(e) => setVerifiedGrade(parseInt(e.target.value, 10))}
-                      style={{ width: "100%", padding: "10px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "6px", color: "#fff" }}
-                    >
-                      <option value={0}>Grade 0: No Diabetic Retinopathy</option>
-                      <option value={1}>Grade 1: Mild Non-Proliferative DR</option>
-                      <option value={2}>Grade 2: Moderate Non-Proliferative DR</option>
-                      <option value={3}>Grade 3: Severe Non-Proliferative DR</option>
-                      <option value={4}>Grade 4: Proliferative Diabetic Retinopathy</option>
-                    </select>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
+                      {ICDR_STAGES.map((stg) => {
+                        const isChosen = verifiedGrade === stg.grade;
+                        return (
+                          <button
+                            key={stg.grade}
+                            type="button"
+                            onClick={() => setVerifiedGrade(stg.grade)}
+                            style={{
+                              padding: "8px 4px",
+                              borderRadius: "8px",
+                              border: isChosen ? `2px solid ${stg.color}` : "1px solid #334155",
+                              background: isChosen ? "rgba(255, 255, 255, 0.1)" : "#07111F",
+                              color: isChosen ? "#FFF" : "#94A3B8",
+                              fontWeight: "700",
+                              fontSize: "12px",
+                              cursor: "pointer",
+                              textAlign: "center",
+                            }}
+                          >
+                            <div>Grade {stg.grade}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div style={{ marginBottom: "16px" }}>
-                    <label style={{ display: "block", fontSize: "13px", color: "#94a3b8", marginBottom: "6px" }}>
-                      Doctor Clinical Notes & Recommendations:
+                  <div>
+                    <label style={{ fontSize: "12px", fontWeight: "700", color: "#F8FAFC", display: "block", marginBottom: "6px" }}>
+                      Doctor Clinical Observations &amp; Verification Notes:
                     </label>
                     <textarea
                       rows={3}
                       value={doctorNotes}
                       onChange={(e) => setDoctorNotes(e.target.value)}
-                      style={{ width: "100%", padding: "10px", backgroundColor: "#0f172a", border: "1px solid #1e293b", borderRadius: "6px", color: "#fff" }}
+                      placeholder="Input clinical impressions, macular findings, or referral instructions..."
+                      style={{
+                        width: "100%",
+                        padding: "10px",
+                        background: "#07111F",
+                        border: "1px solid #334155",
+                        color: "#F8FAFC",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        resize: "vertical",
+                      }}
                     />
                   </div>
 
                   {successMessage && (
-                    <div style={{ padding: "10px", backgroundColor: "rgba(34, 197, 94, 0.2)", border: "1px solid #22c55e", color: "#4ade80", borderRadius: "6px", marginBottom: "14px", fontSize: "14px" }}>
-                      {successMessage}
+                    <div
+                      style={{
+                        background: "rgba(16, 185, 129, 0.1)",
+                        border: "1px solid rgba(16, 185, 129, 0.3)",
+                        color: "#6EE7B7",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <CheckCircle2 size={16} />
+                      <span>{successMessage}</span>
                     </div>
                   )}
 
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    style={{
-                      width: "100%",
-                      padding: "12px",
-                      backgroundColor: "#fb923c",
-                      color: "#000",
-                      fontWeight: "700",
-                      border: "none",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <FileCheck size={18} /> {submitting ? "Signing Off..." : "Sign Off & Verify Screening"}
-                  </button>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        background: "#2563EB",
+                        color: "#FFFFFF",
+                        border: "none",
+                        padding: "10px 24px",
+                        borderRadius: "8px",
+                        fontWeight: "600",
+                        fontSize: "14px",
+                        cursor: submitting ? "not-allowed" : "pointer",
+                        boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
+                      }}
+                    >
+                      <FileCheck size={16} />
+                      {submitting ? "Signing off..." : "Certify & Save Doctor Verification"}
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -19,7 +19,6 @@ export const getAuthHeaders = () => {
 
 const handleAuthError = (status) => {
   if (status === 401) {
-    // If token is invalid or expired, clean up stale token
     localStorage.removeItem("netrascan_token");
     localStorage.removeItem("netrascan_user");
   }
@@ -60,7 +59,7 @@ export const checkHealth = async () => {
 };
 
 // ============================================================
-// AUTHENTICATION
+// AUTHENTICATION & USERS
 // ============================================================
 export const loginUser = async (email, password) => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -93,6 +92,24 @@ export const fetchCurrentUser = async () => {
   return await response.json();
 };
 
+export const createUser = async (userData) => {
+  const response = await fetch(`${API_BASE_URL}/auth/users`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(userData),
+  });
+
+  if (!response.ok) {
+    handleAuthError(response.status);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to create user account.");
+  }
+  return await response.json();
+};
+
 // ============================================================
 // PHC FLEET MANAGEMENT
 // ============================================================
@@ -103,6 +120,24 @@ export const fetchPHCs = async () => {
   if (!response.ok) {
     handleAuthError(response.status);
     throw new Error("Failed to fetch PHCs.");
+  }
+  return await response.json();
+};
+
+export const createPHC = async (phcData) => {
+  const response = await fetch(`${API_BASE_URL}/phcs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(phcData),
+  });
+
+  if (!response.ok) {
+    handleAuthError(response.status);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to create PHC.");
   }
   return await response.json();
 };
@@ -156,6 +191,24 @@ export const fetchPatientDetails = async (patientId) => {
   return await response.json();
 };
 
+export const updatePatient = async (patientId, data) => {
+  const response = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    handleAuthError(response.status);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to update patient record.");
+  }
+  return await response.json();
+};
+
 export const fetchPatientScreenings = async (patientId) => {
   const response = await fetch(`${API_BASE_URL}/patients/${patientId}/screenings`, {
     headers: { ...getAuthHeaders() },
@@ -186,8 +239,13 @@ export const createScreening = async (patientId, examinedEye, file) => {
     handleAuthError(response.status);
     const err = await response.json().catch(() => ({}));
     const detail = err.detail;
-    if (typeof detail === "object" && detail.reason) {
-      throw new Error(detail.reason);
+    if (typeof detail === "object") {
+      const errorObj = new Error(detail.reason || detail.message || "Screening validation failed.");
+      errorObj.errorCode = detail.error_code || "SCREENING_FAILED";
+      errorObj.recommendation = detail.recommendation;
+      errorObj.validFundus = detail.valid_fundus;
+      errorObj.status = detail.status;
+      throw errorObj;
     }
     throw new Error(detail || "Screening failed.");
   }
@@ -207,6 +265,17 @@ export const fetchScreenings = async (verified = null) => {
   if (!response.ok) {
     handleAuthError(response.status);
     throw new Error("Failed to fetch screening records.");
+  }
+  return await response.json();
+};
+
+export const fetchScreeningDetails = async (screeningId) => {
+  const response = await fetch(`${API_BASE_URL}/screenings/${screeningId}`, {
+    headers: { ...getAuthHeaders() },
+  });
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error(`Failed to fetch screening #${screeningId}`);
   }
   return await response.json();
 };
@@ -271,6 +340,15 @@ export const analyzeRetinalImage = async (file) => {
   if (!response.ok) {
     handleAuthError(response.status);
     const errorData = await response.json().catch(() => ({}));
+    const detail = errorData.detail;
+    if (typeof detail === "object") {
+      const errorObj = new Error(detail.reason || detail.message || "Analysis failed.");
+      errorObj.errorCode = detail.error_code || "ANALYSIS_FAILED";
+      errorObj.recommendation = detail.recommendation;
+      errorObj.validFundus = detail.valid_fundus;
+      errorObj.status = detail.status;
+      throw errorObj;
+    }
     throw new Error(
       errorData.detail || errorData.message || `Analysis failed (${response.status})`
     );
@@ -294,7 +372,7 @@ export const generateClinicalReport = async (patientInfo, analysisResult) => {
     analysis_result: analysisResult,
   };
 
-  const response = await fetch(`${API_BASE_URL}/report/generate`, {
+  const response = await fetch(`${API_BASE_URL}/reports/generate`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -315,13 +393,17 @@ export default {
   checkHealth,
   loginUser,
   fetchCurrentUser,
+  createUser,
   fetchPHCs,
+  createPHC,
   fetchPatients,
   createPatient,
   fetchPatientDetails,
+  updatePatient,
   fetchPatientScreenings,
   createScreening,
   fetchScreenings,
+  fetchScreeningDetails,
   verifyScreening,
   fetchDashboardStats,
   analyzeRetinalImage,

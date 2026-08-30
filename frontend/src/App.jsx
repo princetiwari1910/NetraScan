@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { ScreeningProvider, useScreening } from "./context/ScreeningContext";
+import RoleRoute from "./components/RoleRoute";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -8,50 +9,76 @@ import PatientId from "./pages/PatientId";
 import Patients from "./pages/Patients";
 import Dashboard from "./pages/Dashboard";
 import DoctorReview from "./pages/DoctorReview";
+import AdminDashboard from "./pages/AdminDashboard";
+import PatientPortal from "./pages/PatientPortal";
 import Screening from "./pages/Screening";
 import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
 import Report from "./pages/Report";
-
-// ================= PROTECTED ROUTE =================
-
-function ProtectedRoute({ children }) {
-  const { phc, user } = useScreening();
-
-  if (!phc && !user) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return children;
-}
-
-// ================= APP =================
+import Unauthorized from "./pages/Unauthorized";
 
 function App() {
   return (
     <ScreeningProvider>
       <BrowserRouter>
         <Routes>
-          {/* PHC LOGIN */}
+          {/* AUTHENTICATION */}
           <Route path="/login" element={<Login />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
 
-          {/* PHC HOME / PORTAL */}
+          {/* MAIN HOME PORTAL */}
           <Route
             path="/home"
             element={
-              <ProtectedRoute>
+              <RoleRoute>
                 <Home />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 
-          {/* PATIENT REGISTRY & SCREENING HISTORY */}
+          {/* SUPER ADMIN PORTAL (FLEET & USER GOVERNANCE) */}
+          <Route
+            path="/admin"
+            element={
+              <RoleRoute allowedRoles={["SUPER_ADMIN"]}>
+                <AdminDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/admin/dashboard"
+            element={
+              <RoleRoute allowedRoles={["SUPER_ADMIN"]}>
+                <AdminDashboard />
+              </RoleRoute>
+            }
+          />
+
+          {/* DOCTOR PORTAL (OPHTHALMIC CLINICIAN TRIAGE) */}
+          <Route
+            path="/doctor-review"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorReview />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/doctor/dashboard"
+            element={
+              <RoleRoute allowedRoles={["DOCTOR", "SUPER_ADMIN"]}>
+                <DoctorReview />
+              </RoleRoute>
+            }
+          />
+
+          {/* STAFF & CLINICAL PATIENTS ROSTER */}
           <Route
             path="/patients"
             element={
-              <ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
                 <Patients />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 
@@ -59,69 +86,93 @@ function App() {
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
                 <Dashboard />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
-
-          {/* DOCTOR CLINICAL REVIEW QUEUE */}
           <Route
-            path="/doctor-review"
+            path="/phc/dashboard"
             element={
-              <ProtectedRoute>
-                <DoctorReview />
-              </ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
+                <Dashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/staff/dashboard"
+            element={
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
+                <Dashboard />
+              </RoleRoute>
             }
           />
 
-          {/* PATIENT ID */}
+          {/* PATIENT TELE-HEALTH PORTAL */}
+          <Route
+            path="/patient-portal"
+            element={
+              <RoleRoute>
+                <PatientPortal />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/patient/portal"
+            element={
+              <RoleRoute>
+                <PatientPortal />
+              </RoleRoute>
+            }
+          />
+
+          {/* PATIENT ID LOOKUP */}
           <Route
             path="/patient-id"
             element={
-              <ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
                 <PatientId />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 
-          {/* SCREENING */}
+          {/* SCREENING INITIATION */}
           <Route
             path="/screening"
             element={
-              <ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
                 <Screening />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 
-          {/* ANALYSIS */}
+          {/* AI ANALYSIS EXECUTION */}
           <Route
             path="/analysis"
             element={
-              <ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
                 <Analysis />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 
-          {/* RESULTS */}
+          {/* AI RESULTS & EXPLAINABILITY */}
           <Route
             path="/results"
             element={
-              <ProtectedRoute>
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
                 <Results />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 
-          {/* REPORT */}
+          {/* CLINICAL REPORT GENERATION */}
           <Route
             path="/report"
             element={
-              <ProtectedRoute>
+              <RoleRoute>
                 <Report />
-              </ProtectedRoute>
+              </RoleRoute>
             }
           />
 

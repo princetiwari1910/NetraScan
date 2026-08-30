@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import { fetchPatients, createPatient, fetchPatientScreenings } from "../services/api";
-import ScanningEyeIcon from "../components/ScanningEyeIcon";
+import Navbar from "../components/Navbar";
 
 import {
   Eye,
@@ -130,82 +130,61 @@ export default function Patients() {
   };
 
   return (
-    <div className="home-page" style={{ minHeight: "100vh", backgroundColor: "#0b1329", color: "#f8fafc" }}>
+    <div className="home-page" style={{ minHeight: "100vh", backgroundColor: "#07111F", color: "#f8fafc" }}>
       {/* NAVBAR */}
-      <nav className="navbar">
-        <div className="nav-container">
-          <Link to="/home" className="logo">
-            <div className="logo-icon">
-              <ScanningEyeIcon size={24} />
-            </div>
-            <span>
-              Netra<span className="logo-highlight">Scan</span>
-            </span>
-          </Link>
+      <Navbar />
 
-          <div className="nav-links">
-            <Link to="/home" style={{ color: "#94a3b8", textDecoration: "none" }}>Home</Link>
-            <Link to="/dashboard" style={{ color: "#94a3b8", textDecoration: "none" }}>PHC Dashboard</Link>
-            <Link to="/patients" style={{ color: "#38bdf8", fontWeight: "600", textDecoration: "none" }}>Patients</Link>
-            {(user?.role === "DOCTOR" || user?.role === "SUPER_ADMIN") && (
-              <Link to="/doctor-review" style={{ color: "#fb923c", textDecoration: "none" }}>Doctor Review</Link>
-            )}
-          </div>
-
-          <div className="nav-actions">
-            <button
-              onClick={() => {
-                startNewScreening(selectedPatient);
-                navigate("/screening");
-              }}
+      {/* MAIN CONTENT */}
+      <div style={{ maxWidth: "1360px", margin: "32px auto", padding: "0 24px" }}>
+        {/* HEADER */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
+          <div>
+            <span
               style={{
-                backgroundColor: "#2563eb",
-                color: "#ffffff",
-                border: "none",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontWeight: "600",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
+                background: "rgba(56, 189, 248, 0.15)",
+                color: "#38BDF8",
+                border: "1px solid rgba(56, 189, 248, 0.3)",
+                padding: "2px 8px",
+                borderRadius: "12px",
+                fontSize: "11px",
+                fontWeight: "700",
+                display: "inline-block",
+                marginBottom: "6px",
               }}
             >
-              <Activity size={16} /> New Screening
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* MAIN CONTAINER */}
-      <div style={{ maxWidth: "1280px", margin: "32px auto", padding: "0 24px" }}>
-        {/* HEADER */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-          <div>
-            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 8px 0" }}>Patient Registry & Longitudinal Records</h1>
-            <p style={{ color: "#94a3b8", margin: 0 }}>
-              Primary Health Centre: <strong style={{ color: "#38bdf8" }}>{user?.phc_name || phc?.name || "PHC Pune"}</strong> (Code: {user?.phc_code || "PUNE"})
+              PHC PATIENT REGISTRY &amp; SCREENING QUEUE
+            </span>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 8px 0" }}>
+              Patient Records &amp; Longitudinal History
+            </h1>
+            <p style={{ color: "#94a3b8", margin: 0, fontSize: "14px" }}>
+              Search registered patients, review previous fundus analyses, and initiate new retinal screenings.
             </p>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            style={{
-              backgroundColor: "#0ea5e9",
-              color: "#ffffff",
-              border: "none",
-              padding: "10px 20px",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontWeight: "600",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              boxShadow: "0 4px 12px rgba(14, 165, 233, 0.3)",
-            }}
-          >
-            <UserPlus size={18} /> Register New Patient
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                backgroundColor: "#2563eb",
+                color: "#ffffff",
+                border: "none",
+                padding: "10px 18px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "13px",
+                boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
+              }}
+            >
+              <UserPlus size={16} />
+              + Register New Patient
+            </button>
+          </div>
         </div>
 
         {/* SEARCH BAR */}
