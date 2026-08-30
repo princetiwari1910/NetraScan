@@ -25,15 +25,6 @@ from services import (
     ReportService,
 )
 
-# Multi-Tenant Auth & API Routers
-from api.auth import router as auth_router
-from api.phcs import router as phcs_router
-from api.users import router as users_router
-from api.patients import router as patients_router
-from api.screenings import router as screenings_router
-from api.dashboard import router as dashboard_router
-from api.admin import router as admin_router
-
 # -----------------------------------------------------------------------------
 # Configuration & Dynamic AI Service Loader
 # -----------------------------------------------------------------------------
@@ -60,7 +51,7 @@ ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
 # -----------------------------------------------------------------------------
 app = FastAPI(
     title="NetraScan AI API",
-    description="Multi-PHC Hierarchical Role-Based Diabetic Retinopathy Screening & Triage Platform with MATLAB ResNet-18.",
+    description="Diabetic Retinopathy Screening, Triage & Explainable Clinical Reporting System with MATLAB ResNet-18.",
     version="1.0.0",
 )
 
@@ -72,17 +63,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
-
-# -----------------------------------------------------------------------------
-# Register Multi-Tenant Routers
-# -----------------------------------------------------------------------------
-app.include_router(auth_router)
-app.include_router(phcs_router)
-app.include_router(users_router)
-app.include_router(patients_router)
-app.include_router(screenings_router)
-app.include_router(dashboard_router)
-app.include_router(admin_router)
 
 
 # -----------------------------------------------------------------------------
@@ -105,7 +85,7 @@ async def health_check():
 
 
 # -----------------------------------------------------------------------------
-# Direct Inference & Triage Endpoints (Backwards Compatible)
+# Direct Inference & Triage Endpoints
 # -----------------------------------------------------------------------------
 @app.post("/analyze", response_model=AnalysisResponse, tags=["Inference & Triage"])
 async def analyze_fundus_image(file: UploadFile = File(...)):

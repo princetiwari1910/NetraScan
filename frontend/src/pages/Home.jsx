@@ -1,13 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
-import { useAuth } from "../context/AuthContext";
-import Navbar from "../components/Navbar";
-import {
-  fetchDashboardSummaryApi,
-  fetchPHCsApi,
-  fetchAuditLogsApi,
-} from "../services/api";
 
 import {
   Eye,
@@ -23,435 +16,1185 @@ import {
   ChevronDown,
   MapPin,
   LogOut,
-  Stethoscope,
-  Users,
-  AlertTriangle,
-  FileText,
-  Clock,
-  Layers,
-  BarChart3,
-  Search,
 } from "lucide-react";
 
 function Home() {
   const navigate = useNavigate();
-  const { user, role, phc, isSuperAdmin, isDoctor, isStaff } = useAuth();
-  const { healthData } = useScreening();
 
-  const [summary, setSummary] = useState({
-    total_patients: 2,
-    total_screenings: 1,
-    pending_reviews: 0,
-    referable_cases: 1,
-    average_confidence: 0.924,
-  });
+  const { phc, logoutPhc, healthData } = useScreening();
 
-  const [allPhcs, setAllPhcs] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
+  const [showPhcMenu, setShowPhcMenu] = useState(false);
 
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        const stats = await fetchDashboardSummaryApi();
-        setSummary(stats);
+  /* =========================================================
+     START SCREENING
+     =========================================================
+     
+     PHC LOGIN IS REQUIRED.
 
-        if (isSuperAdmin) {
-          const phcs = await fetchPHCsApi();
-          setAllPhcs(phcs);
-          const logs = await fetchAuditLogsApi();
-          setAuditLogs(logs);
-        }
-      } catch (err) {
-        console.warn("Could not load dashboard stats:", err);
-      }
-    };
-    loadDashboardData();
-  }, [isSuperAdmin]);
+     If PHC is not logged in:
+       → Login page
+
+     If PHC is logged in:
+       → Directly to Start a Retinal Screening page
+
+     The old Patient ID page is completely skipped.
+  */
 
   const handleStartScreening = () => {
+    if (!phc) {
+      navigate("/login");
+      return;
+    }
+
     navigate("/screening");
   };
 
+
+  /* =========================================================
+     LOGOUT
+     ========================================================= */
+
+  const handleLogout = () => {
+    setShowPhcMenu(false);
+
+    logoutPhc();
+
+    navigate("/login");
+  };
+
+
   return (
     <div className="home-page">
-      {/* Top Multi-Tenant Navbar */}
-      <Navbar />
 
-      <main>
-        {/* =====================================================
-           HERO SECTION
-           ===================================================== */}
-        <section className="hero-section" id="home">
-          <div className="hero-container">
-            {/* LEFT CONTENT */}
-            <div className="hero-content">
-              <div className="hero-badge">
-                <span className="badge-dot"></span>
-                AI-POWERED RETINAL SCREENING • {healthData?.model || "MATLAB ResNet-18"} (
-                {healthData?.status === "healthy" ? "API CONNECTED" : "OPERATIONAL"})
+      {/* =====================================================
+         NAVBAR
+         ===================================================== */}
+
+      <nav className="navbar">
+
+        <div className="nav-container">
+
+          {/* ================= LOGO ================= */}
+
+          <Link to="/home" className="logo">
+
+            <div className="logo-icon">
+              <Eye size={23} />
+            </div>
+
+            <span>
+              Netra
+              <span className="logo-highlight">
+                Scan
+              </span>
+            </span>
+
+          </Link>
+
+
+          {/* ================= NAVIGATION ================= */}
+
+          <div className="nav-links">
+
+            <a href="#home">
+              Home
+            </a>
+
+            <a href="#how-it-works">
+              How It Works
+            </a>
+
+            <a href="#features">
+              Features
+            </a>
+
+            <a href="#about">
+              About
+            </a>
+
+          </div>
+
+
+          {/* =================================================
+             NAV ACTIONS
+             ================================================= */}
+
+          <div className="nav-actions">
+
+            {/* =================================================
+               PHC USER MENU
+               ================================================= */}
+
+            {phc ? (
+
+              <div className="phc-user-wrapper">
+
+                {/* ================= USER BUTTON ================= */}
+
+                <button
+                  type="button"
+                  className="phc-user-button"
+                  onClick={() =>
+                    setShowPhcMenu((previous) => !previous)
+                  }
+                >
+
+                  <div className="phc-user-icon">
+                    <Building2 size={17} />
+                  </div>
+
+
+                  <div className="phc-user-text">
+
+                    <strong>
+                      {phc.id}
+                    </strong>
+
+                    <span>
+                      {phc.location}
+                    </span>
+
+                  </div>
+
+
+                  <ChevronDown
+                    size={16}
+                    className={`phc-chevron ${
+                      showPhcMenu ? "open" : ""
+                    }`}
+                  />
+
+                </button>
+
+
+                {/* =================================================
+                   PHC DROPDOWN
+                   ================================================= */}
+
+                {showPhcMenu && (
+
+                  <div className="phc-dropdown">
+
+                    {/* ================= HEADER ================= */}
+
+                    <div className="phc-dropdown-header">
+
+                      <div className="phc-dropdown-icon">
+                        <Building2 size={21} />
+                      </div>
+
+
+                      <div className="phc-dropdown-header-text">
+
+                        <strong>
+                          {phc.name || "Primary Health Centre"}
+                        </strong>
+
+                        <span>
+                          {phc.id}
+                        </span>
+
+                      </div>
+
+
+                      <div className="phc-status">
+
+                        <span className="phc-status-dot"></span>
+
+                        Active
+
+                      </div>
+
+                    </div>
+
+
+                    {/* ================= PHC INFORMATION ================= */}
+
+                    <div className="phc-info">
+
+                      {/* PHC ID */}
+
+                      <div className="phc-info-row">
+
+                        <Building2 size={17} />
+
+                        <div>
+
+                          <small>
+                            PHC ID
+                          </small>
+
+                          <strong>
+                            {phc.id}
+                          </strong>
+
+                        </div>
+
+                      </div>
+
+
+                      {/* LOCATION */}
+
+                      <div className="phc-info-row">
+
+                        <MapPin size={17} />
+
+                        <div>
+
+                          <small>
+                            Location
+                          </small>
+
+                          <strong>
+                            {phc.location}
+                          </strong>
+
+                        </div>
+
+                      </div>
+
+
+                      {/* ACCESS LEVEL */}
+
+                      <div className="phc-info-row">
+
+                        <ShieldCheck size={17} />
+
+                        <div>
+
+                          <small>
+                            Access Level
+                          </small>
+
+                          <strong>
+                            Authorized Screening Centre
+                          </strong>
+
+                        </div>
+
+                      </div>
+
+                    </div>
+
+
+                    {/* ================= DIVIDER ================= */}
+
+                    <div className="phc-dropdown-divider"></div>
+
+
+                    {/* ================= LOGOUT ================= */}
+
+                    <button
+                      type="button"
+                      className="phc-logout"
+                      onClick={handleLogout}
+                    >
+
+                      <LogOut size={15} />
+
+                      Logout from PHC
+
+                    </button>
+
+                  </div>
+
+                )}
+
               </div>
 
+
+            ) : (
+
+              /* =================================================
+                 PHC LOGIN
+                 ================================================= */
+
+              <Link
+                to="/login"
+                className="login-button"
+              >
+                PHC Login
+              </Link>
+
+            )}
+
+
+            {/* =================================================
+               START SCREENING
+               ================================================= */}
+
+            <button
+              type="button"
+              className="nav-button"
+              onClick={handleStartScreening}
+            >
+
+              Start Screening
+
+              <ArrowRight size={17} />
+
+            </button>
+
+          </div>
+
+        </div>
+
+      </nav>
+
+
+      {/* =====================================================
+         HERO
+         ===================================================== */}
+
+      <main>
+
+        <section
+          className="hero-section"
+          id="home"
+        >
+
+          <div className="hero-container">
+
+            {/* ================= LEFT ================= */}
+
+            <div className="hero-content">
+
+              <div className="hero-badge">
+
+                <span className="badge-dot"></span>
+
+                AI-POWERED RETINAL SCREENING • {healthData?.model || "MATLAB ResNet-18"} ({healthData?.status === "healthy" ? "API CONNECTED" : "OPERATIONAL"})
+
+              </div>
+
+
               <h1>
+
                 Detect Earlier.
+
                 <br />
-                <span>Explain Better.</span>
+
+                <span>
+                  Explain Better.
+                </span>
+
                 <br />
+
                 Screen Smarter.
+
               </h1>
 
+
               <p className="hero-description">
-                NetraScan uses AI-assisted analysis of retinal fundus images to assess image quality,
-                identify potential diabetic retinopathy indicators, and provide explainable screening
-                results for clinical review.
+
+                NetraScan uses AI-assisted analysis of retinal
+                fundus images to assess image quality, identify
+                potential diabetic retinopathy indicators, and
+                provide explainable screening results for
+                clinical review.
+
               </p>
 
+
+              {/* ================= HERO BUTTONS ================= */}
+
               <div className="hero-buttons">
+
                 <button
                   type="button"
                   className="primary-button"
                   onClick={handleStartScreening}
                 >
+
                   Start Screening
+
                   <ArrowRight size={18} />
+
                 </button>
 
-                <a href="#dashboard-telemetry" className="secondary-button">
-                  Clinical Workspace
+
+                <a
+                  href="#how-it-works"
+                  className="secondary-button"
+                >
+                  How It Works
                 </a>
+
               </div>
+
 
               <div className="hero-note">
+
                 <ShieldCheck size={16} />
+
                 <span>
-                  Tenant Scoped • {isSuperAdmin ? "Super Admin Access" : `${phc?.name || "PHC Unit"} (${role})`}
+                  AI-assisted screening • Clinical review recommended
                 </span>
+
               </div>
+
             </div>
 
-            {/* RETINA GRAPHIC */}
+
+            {/* =================================================
+               RETINA VISUAL
+               ================================================= */}
+
             <div className="retina-container">
+
               <div className="retina-glow"></div>
+
+
               <div className="retina-circle">
+
                 <div className="retina-core"></div>
-                <div className="retina-vessel v1"></div>
-                <div className="retina-vessel v2"></div>
-                <div className="retina-vessel v3"></div>
-                <div className="retina-vessel v4"></div>
-                <div className="retina-vessel v5"></div>
-                <div className="retina-scanner"></div>
-                <div className="retina-hotspot h1"></div>
-                <div className="retina-hotspot h2"></div>
-                <div className="retina-hotspot h3"></div>
+
+
+                {/* ================= RETINA VESSELS ================= */}
+
+                <div className="vessel vessel-1"></div>
+
+                <div className="vessel vessel-2"></div>
+
+                <div className="vessel vessel-3"></div>
+
+                <div className="vessel vessel-4"></div>
+
+                <div className="vessel vessel-5"></div>
+
+                <div className="vessel vessel-6"></div>
+
+
+                {/* ================= AI SCAN ================= */}
+
+                <div className="scan-line"></div>
+
+
+                {/* ================= DETECTION POINTS ================= */}
+
+                <span className="detection-point point-1"></span>
+
+                <span className="detection-point point-2"></span>
+
+                <span className="detection-point point-3"></span>
+
+                <span className="detection-point point-4"></span>
+
               </div>
 
-              <div className="retina-badge">
-                <Sparkles size={16} />
-                <span>MATLAB ResNet-18 • Grad-CAM</span>
+
+              {/* ================= ANALYSIS CARD ================= */}
+
+              <div className="analysis-card">
+
+                <div className="analysis-icon">
+
+                  <ScanSearch size={20} />
+
+                </div>
+
+
+                <div>
+
+                  <strong>
+                    Retinal Analysis
+                  </strong>
+
+                  <small>
+                    AI-assisted screening
+                  </small>
+
+                </div>
+
+
+                <CircleCheck
+                  className="check-icon"
+                  size={21}
+                />
+
               </div>
+
+
+              {/* ================= QUALITY CARD ================= */}
+
+              <div className="quality-card">
+
+                <Activity size={18} />
+
+                <div>
+
+                  <small>
+                    Image Quality
+                  </small>
+
+                  <strong>
+                    Good
+                  </strong>
+
+                </div>
+
+              </div>
+
             </div>
+
           </div>
+
         </section>
 
+
         {/* =====================================================
-           TENANT DASHBOARD TELEMETRY
+           VALUE CARDS
            ===================================================== */}
+
+        <section className="value-section">
+
+          <div className="value-container">
+
+            {/* CARD 1 */}
+
+            <div className="value-card">
+
+              <div className="value-icon">
+
+                <ScanSearch size={22} />
+
+              </div>
+
+
+              <div>
+
+                <h3>
+                  Image Quality
+                </h3>
+
+                <p>
+                  Check whether the retinal image is
+                  suitable for analysis.
+                </p>
+
+              </div>
+
+            </div>
+
+
+            {/* CARD 2 */}
+
+            <div className="value-card">
+
+              <div className="value-icon">
+
+                <Brain size={22} />
+
+              </div>
+
+
+              <div>
+
+                <h3>
+                  AI-Assisted Screening
+                </h3>
+
+                <p>
+                  Analyze retinal features for potential
+                  DR indicators.
+                </p>
+
+              </div>
+
+            </div>
+
+
+            {/* CARD 3 */}
+
+            <div className="value-card">
+
+              <div className="value-icon">
+
+                <Eye size={22} />
+
+              </div>
+
+
+              <div>
+
+                <h3>
+                  Explainable Results
+                </h3>
+
+                <p>
+                  Visualize suspicious regions instead of
+                  relying on a black-box result.
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* =====================================================
+           PROBLEM / SOLUTION
+           ===================================================== */}
+
         <section
-          id="dashboard-telemetry"
-          style={{
-            maxWidth: "1240px",
-            margin: "0 auto 60px",
-            padding: "0 24px",
-          }}
+          className="problem-section"
+          id="about"
         >
-          <div style={{ marginBottom: "20px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-            <div>
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: "700",
-                  color: "#38BDF8",
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
-                }}
-              >
-                {isSuperAdmin ? "PLATFORM WIDE FLEET TELEMETRY" : `${phc?.code || "PHC"} CLINICAL DASHBOARD`}
+
+          <div className="section-container">
+
+            <div className="section-heading">
+
+              <span className="section-label">
+                THE CHALLENGE
               </span>
-              <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#FFFFFF", margin: "4px 0 0" }}>
-                {isSuperAdmin ? "Multi-PHC Administrative Overview" : `${phc?.name || "PHC"} Operational Metrics`}
+
+
+              <h2>
+
+                Making retinal screening
+
+                <span>
+                  {" "}more accessible.
+                </span>
+
               </h2>
+
+
+              <p>
+
+                Early detection of diabetic retinopathy can
+                help prevent vision loss. NetraScan is designed
+                to support scalable retinal screening where
+                specialist access may be limited.
+
+              </p>
+
             </div>
 
-            <span style={{ fontSize: "12px", color: "#94A3B8" }}>
-              Active Tenant: <strong style={{ color: "#38BDF8" }}>{isSuperAdmin ? "Global (All PHCs)" : phc?.name}</strong>
-            </span>
+
+            {/* ================= WORKFLOW ================= */}
+
+            <div className="workflow-preview">
+
+              <div className="workflow-item">
+
+                <div className="workflow-number">
+                  01
+                </div>
+
+                <Upload size={21} />
+
+                <strong>
+                  Retinal Image
+                </strong>
+
+                <span>
+                  Capture / Upload
+                </span>
+
+              </div>
+
+
+              <ArrowRight className="workflow-arrow" />
+
+
+              <div className="workflow-item">
+
+                <div className="workflow-number">
+                  02
+                </div>
+
+                <ScanSearch size={21} />
+
+                <strong>
+                  Quality Check
+                </strong>
+
+                <span>
+                  Image Assessment
+                </span>
+
+              </div>
+
+
+              <ArrowRight className="workflow-arrow" />
+
+
+              <div className="workflow-item">
+
+                <div className="workflow-number">
+                  03
+                </div>
+
+                <Brain size={21} />
+
+                <strong>
+                  AI Analysis
+                </strong>
+
+                <span>
+                  Retinal Features
+                </span>
+
+              </div>
+
+
+              <ArrowRight className="workflow-arrow" />
+
+
+              <div className="workflow-item">
+
+                <div className="workflow-number">
+                  04
+                </div>
+
+                <Sparkles size={21} />
+
+                <strong>
+                  Explain
+                </strong>
+
+                <span>
+                  Clinical Review
+                </span>
+
+              </div>
+
+            </div>
+
           </div>
 
-          {/* Metric Cards Grid */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-              gap: "18px",
-            }}
-          >
-            {/* Total Patients */}
-            <div
-              style={{
-                background: "#0E1829",
-                border: "1px solid #1E2E48",
-                borderRadius: "14px",
-                padding: "20px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ fontSize: "12px", color: "#94A3B8", fontWeight: "600" }}>REGISTERED PATIENTS</span>
-                <Users size={18} color="#38BDF8" />
-              </div>
-              <strong style={{ fontSize: "28px", color: "#FFFFFF", fontWeight: "700" }}>
-                {summary.total_patients}
-              </strong>
-              <span style={{ display: "block", fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
-                {isSuperAdmin ? "Across all network PHCs" : `Scoped to ${phc?.code || "your PHC"}`}
-              </span>
-            </div>
-
-            {/* Total Screenings */}
-            <div
-              style={{
-                background: "#0E1829",
-                border: "1px solid #1E2E48",
-                borderRadius: "14px",
-                padding: "20px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ fontSize: "12px", color: "#94A3B8", fontWeight: "600" }}>AI SCREENINGS CONDUCTED</span>
-                <Activity size={18} color="#2563EB" />
-              </div>
-              <strong style={{ fontSize: "28px", color: "#FFFFFF", fontWeight: "700" }}>
-                {summary.total_screenings}
-              </strong>
-              <span style={{ display: "block", fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
-                5-class ICDR ResNet-18 inferences
-              </span>
-            </div>
-
-            {/* Referable Cases */}
-            <div
-              style={{
-                background: "#0E1829",
-                border: "1px solid #1E2E48",
-                borderRadius: "14px",
-                padding: "20px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ fontSize: "12px", color: "#94A3B8", fontWeight: "600" }}>REFERRALS REQUIRED (G2+)</span>
-                <AlertTriangle size={18} color="#F97316" />
-              </div>
-              <strong style={{ fontSize: "28px", color: "#F97316", fontWeight: "700" }}>
-                {summary.referable_cases}
-              </strong>
-              <span style={{ display: "block", fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
-                Biomarker positive (Moderate+)
-              </span>
-            </div>
-
-            {/* Confidence */}
-            <div
-              style={{
-                background: "#0E1829",
-                border: "1px solid #1E2E48",
-                borderRadius: "14px",
-                padding: "20px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <span style={{ fontSize: "12px", color: "#94A3B8", fontWeight: "600" }}>MEAN AI CONFIDENCE</span>
-                <ShieldCheck size={18} color="#10B981" />
-              </div>
-              <strong style={{ fontSize: "28px", color: "#10B981", fontWeight: "700" }}>
-                {((summary.average_confidence || 0.924) * 100).toFixed(1)}%
-              </strong>
-              <span style={{ display: "block", fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
-                Softmax probability distribution
-              </span>
-            </div>
-          </div>
-
-          {/* =====================================================
-             SUPER ADMIN FLEET OVERVIEW (SUPER_ADMIN ONLY)
-             ===================================================== */}
-          {isSuperAdmin && (
-            <div style={{ marginTop: "32px" }}>
-              <div
-                style={{
-                  background: "#0E1829",
-                  border: "1px solid #1E2E48",
-                  borderRadius: "16px",
-                  padding: "24px",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <Building2 size={20} color="#38BDF8" />
-                    <h3 style={{ fontSize: "17px", fontWeight: "700", color: "#FFFFFF", margin: 0 }}>
-                      Primary Health Centre Fleet Directory
-                    </h3>
-                  </div>
-                  <span
-                    style={{
-                      background: "rgba(56, 189, 248, 0.1)",
-                      border: "1px solid rgba(56, 189, 248, 0.3)",
-                      color: "#38BDF8",
-                      padding: "4px 12px",
-                      borderRadius: "12px",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {allPhcs.length} Active PHC Nodes
-                  </span>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "14px" }}>
-                  {allPhcs.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        background: "#070F1C",
-                        border: "1px solid #1E2E48",
-                        borderRadius: "10px",
-                        padding: "14px 16px",
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <strong style={{ fontSize: "14px", color: "#FFFFFF" }}>{item.code}</strong>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: "700",
-                            color: "#10B981",
-                            background: "rgba(16, 185, 129, 0.15)",
-                            padding: "2px 6px",
-                            borderRadius: "8px",
-                          }}
-                        >
-                          ACTIVE
-                        </span>
-                      </div>
-                      <span style={{ display: "block", fontSize: "13px", color: "#CBD5E1", marginTop: "4px" }}>
-                        {item.name}
-                      </span>
-                      <span style={{ display: "block", fontSize: "11px", color: "#64748B", marginTop: "2px" }}>
-                        {item.location} • {item.contact_phone}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Audit Logs */}
-                <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid #1E2E48" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                    <Clock size={16} color="#38BDF8" />
-                    <strong style={{ fontSize: "14px", color: "#FFFFFF" }}>
-                      Security & Compliance Audit Trail (Last 5 Events)
-                    </strong>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                    {auditLogs.slice(0, 5).map((log) => (
-                      <div
-                        key={log.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "8px 12px",
-                          background: "#070F1C",
-                          borderRadius: "8px",
-                          fontSize: "12px",
-                        }}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                          <span
-                            style={{
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              background: "rgba(56, 189, 248, 0.15)",
-                              color: "#38BDF8",
-                              fontWeight: "700",
-                              fontSize: "10px",
-                            }}
-                          >
-                            {log.action}
-                          </span>
-                          <span style={{ color: "#E2E8F0" }}>{log.user_email}</span>
-                          <span style={{ color: "#64748B" }}>({log.user_role})</span>
-                        </div>
-                        <span style={{ color: "#64748B", fontFamily: "monospace", fontSize: "11px" }}>
-                          {log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : "Just now"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </section>
 
+
         {/* =====================================================
-           HOW IT WORKS SECTION
+           HOW IT WORKS
            ===================================================== */}
-        <section className="how-it-works-section" id="how-it-works">
+
+        <section
+          className="how-section"
+          id="how-it-works"
+        >
+
           <div className="section-container">
-            <div className="section-header">
-              <span className="section-label">CLINICAL WORKFLOW</span>
-              <h2>How NetraScan Operates</h2>
-              <p>Standardized, secure 4-step diabetic retinopathy screening pipeline.</p>
+
+            <div className="section-heading centered">
+
+              <span className="section-label">
+                HOW IT WORKS
+              </span>
+
+
+              <h2>
+
+                From retinal image to
+
+                <span>
+                  {" "}explainable screening.
+                </span>
+
+              </h2>
+
+
+              <p>
+                A simple workflow designed for healthcare
+                screening environments.
+              </p>
+
             </div>
+
 
             <div className="steps-grid">
-              <div className="step-card">
-                <div className="step-number">01</div>
-                <div className="step-icon">
-                  <ScanSearch size={24} />
-                </div>
-                <h3>Patient Intake & Quality Gate</h3>
-                <p>Register patient under local PHC tenant and run OpenCV Laplacian blur gatekeeping.</p>
-              </div>
+
+              {/* STEP 1 */}
 
               <div className="step-card">
-                <div className="step-number">02</div>
-                <div className="step-icon">
-                  <Brain size={24} />
+
+                <div className="step-number">
+                  01
                 </div>
-                <h3>MATLAB ResNet-18 Inference</h3>
-                <p>Classify retinal image across 5 ICDR grades with CLAHE contrast normalization.</p>
+
+                <Upload size={24} />
+
+                <h3>
+                  Upload
+                </h3>
+
+                <p>
+                  Upload a retinal fundus image captured
+                  using a compatible retinal imaging device.
+                </p>
+
               </div>
 
-              <div className="step-card">
-                <div className="step-number">03</div>
-                <div className="step-icon">
-                  <Activity size={24} />
-                </div>
-                <h3>Grad-CAM Explainability</h3>
-                <p>Localize convolutional attention heatmaps on layer4 (res5b_relu) for microvascular biomarkers.</p>
-              </div>
+
+              {/* STEP 2 */}
 
               <div className="step-card">
-                <div className="step-number">04</div>
-                <div className="step-icon">
-                  <Stethoscope size={24} />
+
+                <div className="step-number">
+                  02
                 </div>
-                <h3>Physician Decision Review</h3>
-                <p>Licensed ophthalmologist validates or overrides AI triage and signs standardized clinical reports.</p>
+
+                <ScanSearch size={24} />
+
+                <h3>
+                  Check
+                </h3>
+
+                <p>
+                  Assess brightness, contrast, sharpness
+                  and field of view before analysis.
+                </p>
+
               </div>
+
+
+              {/* STEP 3 */}
+
+              <div className="step-card">
+
+                <div className="step-number">
+                  03
+                </div>
+
+                <Brain size={24} />
+
+                <h3>
+                  Analyze
+                </h3>
+
+                <p>
+                  Analyze retinal structures and potential
+                  diabetic retinopathy indicators.
+                </p>
+
+              </div>
+
+
+              {/* STEP 4 */}
+
+              <div className="step-card">
+
+                <div className="step-number">
+                  04
+                </div>
+
+                <Sparkles size={24} />
+
+                <h3>
+                  Explain
+                </h3>
+
+                <p>
+                  Visualize suspicious regions and summarize
+                  the screening result for clinical review.
+                </p>
+
+              </div>
+
             </div>
+
           </div>
+
         </section>
+
+
+        {/* =====================================================
+           FEATURES
+           ===================================================== */}
+
+        <section
+          className="features-section"
+          id="features"
+        >
+
+          <div className="section-container">
+
+            <div className="section-heading">
+
+              <span className="section-label">
+                CORE CAPABILITIES
+              </span>
+
+
+              <h2>
+
+                Built for
+
+                <span>
+                  {" "}explainable screening.
+                </span>
+
+              </h2>
+
+            </div>
+
+
+            <div className="features-grid">
+
+              {/* FEATURE 1 */}
+
+              <div className="feature-card">
+
+                <ScanSearch size={25} />
+
+                <h3>
+                  Image Quality Assessment
+                </h3>
+
+                <p>
+                  Evaluate brightness, contrast, sharpness
+                  and field of view before screening.
+                </p>
+
+              </div>
+
+
+              {/* FEATURE 2 */}
+
+              <div className="feature-card">
+
+                <Activity size={25} />
+
+                <h3>
+                  Image Enhancement
+                </h3>
+
+                <p>
+                  Improve retinal visibility through contrast
+                  enhancement, illumination normalization
+                  and denoising.
+                </p>
+
+              </div>
+
+
+              {/* FEATURE 3 */}
+
+              <div className="feature-card">
+
+                <Eye size={25} />
+
+                <h3>
+                  Retinal Structure Analysis
+                </h3>
+
+                <p>
+                  Visualize important structures including
+                  the optic disc, fovea and retinal blood vessels.
+                </p>
+
+              </div>
+
+
+              {/* FEATURE 4 */}
+
+              <div className="feature-card">
+
+                <CircleCheck size={25} />
+
+                <h3>
+                  Lesion Detection
+                </h3>
+
+                <p>
+                  Highlight potential microaneurysms,
+                  hemorrhages, exudates and neovascularization.
+                </p>
+
+              </div>
+
+
+              {/* FEATURE 5 */}
+
+              <div className="feature-card">
+
+                <Activity size={25} />
+
+                <h3>
+                  DR Grading
+                </h3>
+
+                <p>
+                  Represent the conceptual progression
+                  from No DR to Proliferative DR.
+                </p>
+
+              </div>
+
+
+              {/* FEATURE 6 */}
+
+              <div className="feature-card highlight-feature">
+
+                <Sparkles size={25} />
+
+                <h3>
+                  Explainable AI
+                </h3>
+
+                <p>
+                  Show suspicious retinal regions so
+                  screening results are easier to understand.
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* =====================================================
+           CTA
+           ===================================================== */}
+
+        <section className="cta-section">
+
+          <div className="cta-container">
+
+            <div>
+
+              <span className="section-label">
+                BEGIN SCREENING
+              </span>
+
+
+              <h2>
+
+                Start with a retinal image.
+
+                <br />
+
+                <span>
+                  Understand the result.
+                </span>
+
+              </h2>
+
+
+              <p>
+                Explore the NetraScan AI-assisted
+                screening workflow.
+              </p>
+
+            </div>
+
+
+            <button
+              type="button"
+              className="primary-button"
+              onClick={handleStartScreening}
+            >
+
+              Start Screening
+
+              <ArrowRight size={18} />
+
+            </button>
+
+          </div>
+
+        </section>
+
       </main>
+
+
+      {/* =====================================================
+         FOOTER
+         ===================================================== */}
+
+      <footer className="footer">
+
+        <div className="footer-container">
+
+          <div className="footer-brand">
+
+            <Link
+              to="/home"
+              className="logo"
+            >
+
+              <div className="logo-icon">
+
+                <Eye size={20} />
+
+              </div>
+
+
+              <span>
+
+                Netra
+
+                <span className="logo-highlight">
+                  Scan
+                </span>
+
+              </span>
+
+            </Link>
+
+
+            <p>
+              AI-assisted retinal screening interface.
+            </p>
+
+          </div>
+
+
+          <div className="footer-links">
+
+            <a href="#home">
+              Home
+            </a>
+
+            <a href="#how-it-works">
+              How It Works
+            </a>
+
+            <a href="#features">
+              Features
+            </a>
+
+            <button
+              type="button"
+              onClick={handleStartScreening}
+            >
+              Screening
+            </button>
+
+            <Link to="/login">
+              PHC Login
+            </Link>
+
+          </div>
+
+        </div>
+
+
+        <div className="footer-bottom">
+
+          <span>
+            © 2026 NetraScan. Hackathon prototype.
+          </span>
+
+
+          <span>
+            NetraScan does not replace professional
+            ophthalmological diagnosis.
+          </span>
+
+        </div>
+
+      </footer>git status
+
     </div>
   );
 }

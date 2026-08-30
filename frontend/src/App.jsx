@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { ScreeningProvider } from "./context/ScreeningContext";
+
+import { ScreeningProvider, useScreening } from "./context/ScreeningContext";
 
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -11,118 +11,95 @@ import Results from "./pages/Results";
 import Report from "./pages/Report";
 
 // ================= PROTECTED ROUTE =================
-function ProtectedRoute({ children, allowedRoles }) {
-  const { isAuthenticated, user, isLoading } = useAuth();
 
-  if (isLoading) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#070D18",
-          color: "#38BDF8",
-          fontSize: "16px",
-          fontWeight: "600",
-        }}
-      >
-        Initializing NetraScan Secure Session...
-      </div>
-    );
-  }
+function ProtectedRoute({ children }) {
+  const { phc } = useScreening();
 
-  if (!isAuthenticated) {
+  if (!phc) {
     return <Navigate to="/login" replace />;
-  }
-
-  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/home" replace />;
   }
 
   return children;
 }
 
 // ================= APP =================
+
 function App() {
   return (
-    <AuthProvider>
-      <ScreeningProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* LOGIN */}
-            <Route path="/login" element={<Login />} />
+    <ScreeningProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* PHC LOGIN */}
+          <Route path="/login" element={<Login />} />
 
-            {/* HOME / PORTAL */}
-            <Route
-              path="/home"
-              element={
-                <ProtectedRoute>
-                  <Home />
-                </ProtectedRoute>
-              }
-            />
+          {/* PHC HOME / PORTAL */}
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* PATIENT ID */}
-            <Route
-              path="/patient-id"
-              element={
-                <ProtectedRoute>
-                  <PatientId />
-                </ProtectedRoute>
-              }
-            />
+          {/* PATIENT ID */}
+          <Route
+            path="/patient-id"
+            element={
+              <ProtectedRoute>
+                <PatientId />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* SCREENING */}
-            <Route
-              path="/screening"
-              element={
-                <ProtectedRoute>
-                  <Screening />
-                </ProtectedRoute>
-              }
-            />
+          {/* SCREENING */}
+          <Route
+            path="/screening"
+            element={
+              <ProtectedRoute>
+                <Screening />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* ANALYSIS */}
-            <Route
-              path="/analysis"
-              element={
-                <ProtectedRoute>
-                  <Analysis />
-                </ProtectedRoute>
-              }
-            />
+          {/* ANALYSIS */}
+          <Route
+            path="/analysis"
+            element={
+              <ProtectedRoute>
+                <Analysis />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* RESULTS */}
-            <Route
-              path="/results"
-              element={
-                <ProtectedRoute>
-                  <Results />
-                </ProtectedRoute>
-              }
-            />
+          {/* RESULTS */}
+          <Route
+            path="/results"
+            element={
+              <ProtectedRoute>
+                <Results />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* REPORT (DOCTOR & SUPER ADMIN) */}
-            <Route
-              path="/report"
-              element={
-                <ProtectedRoute allowedRoles={["DOCTOR", "SUPER_ADMIN", "STAFF"]}>
-                  <Report />
-                </ProtectedRoute>
-              }
-            />
+          {/* REPORT */}
+          <Route
+            path="/report"
+            element={
+              <ProtectedRoute>
+                <Report />
+              </ProtectedRoute>
+            }
+          />
 
-            {/* ROOT -> LOGIN */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* ROOT → LOGIN */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
 
-            {/* UNKNOWN -> LOGIN */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </ScreeningProvider>
-    </AuthProvider>
+          {/* UNKNOWN URL */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </ScreeningProvider>
   );
 }
 
