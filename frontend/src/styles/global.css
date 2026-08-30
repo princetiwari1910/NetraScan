@@ -11331,3 +11331,85 @@ upload-area {
 .phc-logout:hover {
   background: #fff1eb;
 }
+
+/* ================= DOCTOR LOGIN ================= */
+.doctor-login-page {
+  min-height: 100vh;
+  background: #f5f8fb;
+  color: #17212b;
+  position: relative;
+  overflow-x: hidden;
+}
+
+.doctor-login-navbar {
+  height: 72px;
+  padding: 0 6%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border-bottom: 1px solid #e5ebf0;
+}
+
+.doctor-login-nav-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.doctor-login-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #17212b;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.doctor-login-logo > span > span {
+  color: #c2410c;
+}
+
+.doctor-login-logo-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.doctor-login-security {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #c2410c;
+  background: #fff7ed;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid #ffedd5;
+}
+
+.doctor-login-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ea580c;
+}
+
+.doctor-login-main {
+  min-height: calc(100vh - 72px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+}
