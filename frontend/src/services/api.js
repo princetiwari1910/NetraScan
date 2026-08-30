@@ -369,16 +369,20 @@ export const createScreening = async (patientId, examinedEye, file) => {
       return await response.json();
     } catch (err) {
       clearTimeout(timer);
+      if (err.httpStatus) {
+        // Explicit response from backend (e.g. 400 INVALID_FUNDUS_IMAGE, 401 AUTH, 403 FORBIDDEN, 422 RECAPTURE) -> throw immediately
+        throw err;
+      }
       if (
         attempt < maxRetries &&
         (err.name === "AbortError" ||
-          err.message?.toLowerCase().includes("failed") ||
-          err.message?.toLowerCase().includes("network") ||
-          err.name === "TypeError")
+          err.name === "TypeError" ||
+          err.message?.toLowerCase().includes("failed to fetch") ||
+          err.message?.toLowerCase().includes("load failed"))
       ) {
         console.warn(`[NetraScan API] Connection glitch (${err.message}). Retrying attempt ${attempt + 2}...`);
         attempt++;
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 1500));
         continue;
       }
       throw err;
@@ -559,14 +563,18 @@ export const analyzeRetinalImage = async (file) => {
       return await response.json();
     } catch (err) {
       clearTimeout(timer);
+      if (err.httpStatus) {
+        throw err;
+      }
       if (
         attempt < maxRetries &&
         (err.name === "AbortError" ||
-          err.message?.toLowerCase().includes("failed") ||
-          err.name === "TypeError")
+          err.name === "TypeError" ||
+          err.message?.toLowerCase().includes("failed to fetch") ||
+          err.message?.toLowerCase().includes("load failed"))
       ) {
         attempt++;
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 1500));
         continue;
       }
       throw err;
