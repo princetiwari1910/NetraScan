@@ -375,7 +375,7 @@ function Analysis() {
               <span className="analysis-card-label">CURRENT PATIENT</span>
               <h3>{patient?.name || patient?.full_name || "Screening Patient"}</h3>
               <p>
-                Patient UID: {patient?.patient_uid || "NS-PUN-000001"} • Age: {patient?.age || "58"} yrs • Eye: {patient?.examined_eye || "OD - Right Eye"}
+                Patient UID: {patient?.patient_uid || "Pending Registration"} • Age: {patient?.age || "52"} yrs • Eye: {patient?.examined_eye || "OD - Right Eye"}
               </p>
             </div>
 
