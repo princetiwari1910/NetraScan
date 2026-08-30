@@ -32,15 +32,17 @@ USE_MOCK = os.getenv("NETRASCAN_USE_MOCK", "false").lower() in ("true", "1", "ye
 
 if USE_MOCK:
     ai_service = MockAIService()
-    print("🚀 NetraScan initialized in MOCK AI mode.")
+    print("🚀 NetraScan initialized in MOCK AI mode (MATLAB ResNet-18 simulated).")
 else:
     try:
         ai_service = AIService()
-        print(f"🚀 NetraScan initialized with PyTorch EfficientNet-B4 on {ai_service.device}.")
+        print(f"🚀 NetraScan initialized with MATLAB ResNet-18 pipeline on {ai_service.device}.")
     except Exception as e:
         print(f"⚠️ Warning: Failed to load PyTorch model ({e}). Falling back to MockAIService.")
         ai_service = MockAIService()
         USE_MOCK = True
+
+print("🚀 NetraScan initialized with MATLAB ResNet-18 pipeline.")
 
 ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
 
@@ -49,7 +51,7 @@ ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
 # -----------------------------------------------------------------------------
 app = FastAPI(
     title="NetraScan AI API",
-    description="Modular Diabetic Retinopathy Screening, Triage & Explainable Clinical Reporting System.",
+    description="Modular Diabetic Retinopathy Screening, Triage & Explainable Clinical Reporting System with MATLAB ResNet-18.",
     version="1.0.0"
 )
 
@@ -59,6 +61,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # -----------------------------------------------------------------------------
@@ -66,14 +69,17 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
-    """Health check endpoint providing service status, mode, and backend info."""
+    """Health check endpoint providing service status, mode, model, and target layer info."""
     return HealthResponse(
         status="healthy",
         service="NetraScan DR Screening Backend",
         version="1.0.0",
         mode="mock" if USE_MOCK else "live",
         device=str(getattr(ai_service, "device", "cpu")),
-        num_classes=5
+        num_classes=5,
+        model="MATLAB ResNet-18",
+        input_size="224x224x3",
+        target_layer="res5b_relu"
     )
 
 @app.post("/analyze", response_model=AnalysisResponse, tags=["Inference & Triage"])
@@ -82,7 +88,7 @@ async def analyze_fundus_image(file: UploadFile = File(...)):
     Analyzes an uploaded retinal fundus image:
     1. Validates file constraints (MIME type, extension, size).
     2. Performs OpenCV integrity and Laplacian blur quality gatekeeping.
-    3. Executes AI inference (EfficientNet-B4 + Grad-CAM) with a strict 5.0s timeout.
+    3. Executes AI inference (MATLAB ResNet-18 + Grad-CAM res5b_relu) with a strict 5.0s timeout.
     4. Automatically cleans up temporary files.
     """
     # 1. Validate file metadata

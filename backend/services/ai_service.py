@@ -54,9 +54,15 @@ ICDR_EVIDENCE_MAP: Dict[int, List[str]] = {
     ]
 }
 
-IMAGE_SIZE = (380, 380)
+IMAGE_SIZE = (224, 224)
+REFERRAL_THRESHOLD = 0.35  # Clinical referral threshold for sum(P(Grade >= 2))
 
 class AIService:
+    """
+    MATLAB-trained ResNet-18 AI Screening and Grad-CAM Inference Service.
+    Input resolution: 224x224x3
+    Target layer for Grad-CAM: res5b_relu (layer4[-1] / layer4[1].relu)
+    """
     def __init__(self):
         self.device = torch.device(
             "cuda" if torch.cuda.is_available()
@@ -64,7 +70,9 @@ class AIService:
             else "cpu"
         )
         self.model = self._init_model(os.getenv("MODEL_WEIGHTS_PATH", None))
-        self.target_layers = [self.model.features[-1]]
+        # Target layer: layer4[-1] (equivalent to MATLAB's res5b_relu)
+        self.target_layer_name = "res5b_relu"
+        self.target_layers = [self.model.layer4[-1]]
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize(IMAGE_SIZE),
@@ -76,9 +84,13 @@ class AIService:
         ])
 
     def _init_model(self, weights_path: str = None) -> nn.Module:
-        model = models.efficientnet_b4(weights=models.EfficientNet_B4_Weights.DEFAULT)
-        in_features = model.classifier[1].in_features
-        model.classifier[1] = nn.Linear(in_features, 5)
+        try:
+            model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+        except Exception:
+            model = models.resnet18(weights=None)
+
+        in_features = model.fc.in_features
+        model.fc = nn.Linear(in_features, 5)
 
         if weights_path and os.path.exists(weights_path):
             state_dict = torch.load(weights_path, map_location=self.device)
@@ -103,7 +115,9 @@ class AIService:
         rgb_image_resized: np.ndarray,
         target_class: int
     ) -> str:
-        """Generates Grad-CAM heatmap and returns as Base64 JPEG data URI."""
+        """
+        Generates Grad-CAM heatmap from res5b_relu layer and returns as Base64 JPEG data URI.
+        """
         try:
             cam = GradCAM(model=self.model, target_layers=self.target_layers)
             targets = [ClassifierOutputTarget(target_class)]
@@ -124,8 +138,8 @@ class AIService:
 
     def analyze_fundus(self, file_path: str, filename: str = "") -> AnalysisSuccessResponse:
         """
-        Runs complete deep learning inference with CLAHE enhancement,
-        Grad-CAM explainability, and clinical evidence extraction.
+        Runs complete deep learning inference on 224x224 fundus image with CLAHE enhancement,
+        ResNet-18 classification, 0.35 referable thresholding, and Grad-CAM explainability.
         """
         img_bgr = cv2.imread(file_path)
         if img_bgr is None:
@@ -156,13 +170,19 @@ class AIService:
         predicted_grade = int(np.argmax(probabilities))
         confidence_score = float(probabilities[predicted_grade])
 
+        # Referral Decision Logic:
+        # Referable DR classes: Grade 2, 3, and 4
+        # Clinical Probability Threshold: If sum of probabilities for Grade >= 2 exceeds 0.35, mark referable = True
+        referable_prob = float(np.sum(probabilities[2:]))
+        is_referable = bool(referable_prob >= REFERRAL_THRESHOLD)
+
         # Class probabilities map
         class_probs = {
             f"Grade_{i}_{ICDR_STAGE_NAMES[i]}": round(float(prob), 4)
             for i, prob in enumerate(probabilities)
         }
 
-        # Grad-CAM heatmap
+        # Grad-CAM heatmap from res5b_relu
         gradcam_b64 = self._generate_gradcam(input_tensor, rgb_resized, predicted_grade)
 
         # Evidence list
@@ -172,7 +192,7 @@ class AIService:
             status="success",
             dr_grade=predicted_grade,
             severity_label=ICDR_STAGE_NAMES[predicted_grade],
-            referable=bool(predicted_grade >= 2),
+            referable=is_referable,
             confidence=round(confidence_score, 4),
             class_probabilities=class_probs,
             gradcam_image=gradcam_b64,

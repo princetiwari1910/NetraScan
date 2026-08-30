@@ -6,20 +6,22 @@ import numpy as np
 from PIL import Image
 
 from schemas import AnalysisSuccessResponse, QualityMetric
-from services.ai_service import ICDR_STAGE_NAMES, ICDR_EVIDENCE_MAP
+from services.ai_service import ICDR_STAGE_NAMES, ICDR_EVIDENCE_MAP, REFERRAL_THRESHOLD
 
 class MockAIService:
     """
     Mock AI Service for fast local development, frontend prototyping,
     and testing without requiring PyTorch model weights or GPU acceleration.
+    Simulates MATLAB ResNet-18 (224x224x3, res5b_relu Grad-CAM).
     """
     def __init__(self):
         self.device = "mock-cpu"
+        self.target_layer_name = "res5b_relu"
 
     def _generate_synthetic_heatmap(self, img_bgr: np.ndarray) -> str:
         """
         Creates a synthetic Grad-CAM style heatmap overlay on the fundus image
-        simulating retinal lesion attention regions.
+        simulating retinal lesion attention regions from ResNet-18 res5b_relu.
         """
         h, w = img_bgr.shape[:2]
         # Create a synthetic Gaussian activation map centered near macula / temporal region
@@ -55,12 +57,13 @@ class MockAIService:
     def analyze_fundus(self, file_path: str, filename: str = "") -> AnalysisSuccessResponse:
         """
         Returns a mock Grade 2 (Moderate NPDR) analysis response with realistic
-        clinical evidence, confidence metrics, and synthetic Grad-CAM visualization.
+        clinical evidence, confidence metrics, ResNet-18 224x224 resolution,
+        0.35 referral thresholding, and synthetic Grad-CAM visualization.
         """
         img_bgr = cv2.imread(file_path)
         if img_bgr is None:
             # Fallback black canvas if image read fails
-            img_bgr = np.zeros((380, 380, 3), dtype=np.uint8)
+            img_bgr = np.zeros((224, 224, 3), dtype=np.uint8)
 
         # Compute actual sharpness metric from image
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
@@ -84,6 +87,14 @@ class MockAIService:
             f"Grade_4_{ICDR_STAGE_NAMES[4]}": 0.0045,
         }
 
+        # Referral decision logic based on >= 0.35 sum of Grade 2+
+        referable_prob = (
+            class_probabilities[f"Grade_2_{ICDR_STAGE_NAMES[2]}"] +
+            class_probabilities[f"Grade_3_{ICDR_STAGE_NAMES[3]}"] +
+            class_probabilities[f"Grade_4_{ICDR_STAGE_NAMES[4]}"]
+        )
+        is_referable = bool(referable_prob >= REFERRAL_THRESHOLD)
+
         gradcam_image = self._generate_synthetic_heatmap(img_bgr)
         evidence = ICDR_EVIDENCE_MAP.get(predicted_grade, ["Analysis completed."])
 
@@ -91,7 +102,7 @@ class MockAIService:
             status="success",
             dr_grade=predicted_grade,
             severity_label=ICDR_STAGE_NAMES[predicted_grade],
-            referable=True,
+            referable=is_referable,
             confidence=confidence,
             class_probabilities=class_probabilities,
             gradcam_image=gradcam_image,

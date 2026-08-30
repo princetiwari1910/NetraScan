@@ -317,7 +317,7 @@ class ReportService:
             <div class="meta-area">
                 <div><strong>Report ID:</strong> {report_id}</div>
                 <div><strong>Generated:</strong> {now_str}</div>
-                <div><strong>Software Ver:</strong> 1.0.0 (ICDR-B4)</div>
+                <div><strong>Software Ver:</strong> 1.0.0 (MATLAB ResNet-18)</div>
             </div>
         </div>
 

@@ -14,12 +14,15 @@ class HealthResponse(BaseModel):
     mode: str = Field(..., description="'live' or 'mock'")
     device: str = "cpu"
     num_classes: int = 5
+    model: str = "MATLAB ResNet-18"
+    input_size: str = "224x224x3"
+    target_layer: str = "res5b_relu"
 
 class AnalysisSuccessResponse(BaseModel):
     status: Literal["success"] = "success"
     dr_grade: int = Field(..., ge=0, le=4, description="ICDR DR severity grade (0 to 4)")
     severity_label: str = Field(..., description="Descriptive ICDR clinical stage name")
-    referable: bool = Field(..., description="True if grade >= 2 (referral recommended)")
+    referable: bool = Field(..., description="True if sum of probabilities for Grade >= 2 exceeds 0.35 threshold (referral recommended)")
     confidence: float = Field(..., description="Confidence probability (0.0 to 1.0)")
     class_probabilities: Dict[str, float] = Field(default_factory=dict, description="Softmax probabilities for each ICDR class")
     gradcam_image: str = Field(..., description="Base64 data URI of Grad-CAM overlay heatmap")
