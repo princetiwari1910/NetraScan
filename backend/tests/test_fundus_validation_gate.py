@@ -233,6 +233,47 @@ class TestFundusValidationGate(unittest.IsolatedAsyncioTestCase):
         self.assertIn("reason", data)
         self.assertNotIn("dr_grade", data)
 
+    # TEST 7: Valid Fundus on White Background/EMR Canvas -> Accepted & Inferenced
+    async def test_07_fundus_on_white_canvas_accepted(self):
+        fundus_white_bg = np.full((600, 600, 3), [255, 255, 255], dtype=np.uint8)
+        cv2.circle(fundus_white_bg, (300, 300), 200, [30, 95, 175], -1) # BGR retinal color
+        cv2.circle(fundus_white_bg, (380, 300), 30, [70, 180, 230], -1) # Optic disc
+        img_bytes = self._encode_img_to_bytes(fundus_white_bg)
+
+        res = await asgi_call(
+            "POST",
+            "/analyze",
+            headers=self.auth_headers,
+            multipart_files=[("file", "fundus_white_canvas.jpg", img_bytes, "image/jpeg")],
+        )
+        self.assertEqual(res["status_code"], 200)
+        data = res["json"]
+        self.assertEqual(data["status"], "success")
+        self.assertIn("dr_grade", data)
+
+    # TEST 8: Valid Fundus PNG with RGBA -> Accepted & Inferenced
+    async def test_08_fundus_png_rgba_accepted(self):
+        fundus_rgba = np.zeros((400, 400, 4), dtype=np.uint8)
+        fundus_rgba[:, :, :3] = [30, 95, 175] # BGR
+        fundus_rgba[:, :, 3] = 255            # Full Alpha
+        # Add realistic optic disc and vessels
+        cv2.circle(fundus_rgba, (200, 200), 160, [25, 90, 180, 255], -1)
+        cv2.circle(fundus_rgba, (260, 200), 25, [70, 180, 230, 255], -1)
+        for i in range(10):
+            cv2.line(fundus_rgba, (260, 200), (80 + i * 25, 60 + (i % 3) * 80), [15, 45, 120, 255], 2)
+        img_bytes = self._encode_img_to_bytes(fundus_rgba, ext=".png")
+
+        res = await asgi_call(
+            "POST",
+            "/analyze",
+            headers=self.auth_headers,
+            multipart_files=[("file", "fundus_transparent.png", img_bytes, "image/png")],
+        )
+        self.assertEqual(res["status_code"], 200)
+        data = res["json"]
+        self.assertEqual(data["status"], "success")
+        self.assertIn("dr_grade", data)
+
 
 if __name__ == "__main__":
     unittest.main()
