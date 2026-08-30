@@ -60,6 +60,7 @@ IMAGE_SIZE = (224, 224)
 REFERABLE_THRESHOLD = float(
     os.getenv("REFERABLE_THRESHOLD", "0.35")
 )
+REFERRAL_THRESHOLD = REFERABLE_THRESHOLD
 
 # MATLAB executable.
 # Change this if MATLAB is installed somewhere else.
