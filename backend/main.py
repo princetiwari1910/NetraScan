@@ -26,23 +26,25 @@ from services import (
 )
 
 # -----------------------------------------------------------------------------
-# Configuration & Dynamic AI Service Loader
+# Configuration & Model Lifecycle Loader
 # -----------------------------------------------------------------------------
 USE_MOCK = os.getenv("NETRASCAN_USE_MOCK", "false").lower() in ("true", "1", "yes")
 
+ai_service = None
+model_error = None
+
 if USE_MOCK:
     ai_service = MockAIService()
-    print("🚀 NetraScan initialized in MOCK AI mode (MATLAB ResNet-18 simulated).")
+    print("🚀 NetraScan initialized in MOCK AI mode (Simulated MATLAB ResNet-18).")
 else:
     try:
         ai_service = AIService()
-        print(f"🚀 NetraScan initialized with MATLAB ResNet-18 pipeline on {ai_service.device}.")
+        print("🚀 NetraScan initialized with MATLAB ResNet-18 ONNX runtime pipeline.")
     except Exception as e:
-        print(f"⚠️ Warning: Failed to load PyTorch model ({e}). Falling back to MockAIService.")
-        ai_service = MockAIService()
-        USE_MOCK = True
-
-print("🚀 NetraScan initialized with MATLAB ResNet-18 pipeline.")
+        model_error = str(e)
+        print(f"❌ FATAL: Failed to load NetraScan ResNet-18 ONNX model: {e}")
+        # When LIVE mode is active, do NOT silently fake predictions or fall back to mock
+        ai_service = None
 
 ANALYSIS_TIMEOUT_SECONDS = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
 
@@ -71,16 +73,20 @@ app.add_middleware(
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """Health check endpoint providing service status, mode, model, and target layer info."""
+    is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
     return HealthResponse(
-        status="healthy",
+        status="healthy" if (USE_MOCK or is_loaded) else "degraded",
         service="NetraScan DR Screening Backend",
         version="1.0.0",
         mode="mock" if USE_MOCK else "live",
         device=str(getattr(ai_service, "device", "cpu")),
+        runtime="mock" if USE_MOCK else "onnxruntime",
+        model="NetraScan ResNet-18",
+        model_loaded=is_loaded,
         num_classes=5,
-        model="MATLAB ResNet-18",
         input_size="224x224x3",
         target_layer="res5b_relu",
+        referable_threshold=0.35,
     )
 
 
@@ -91,11 +97,19 @@ async def health_check():
 async def analyze_fundus_image(file: UploadFile = File(...)):
     """
     Analyzes an uploaded retinal fundus image:
-    1. Validates file constraints (MIME type, extension, size).
-    2. Performs OpenCV integrity and Laplacian blur quality gatekeeping.
-    3. Executes AI inference (MATLAB ResNet-18 + Grad-CAM res5b_relu) with a strict 5.0s timeout.
-    4. Automatically cleans up temporary files.
+    1. Checks model availability.
+    2. Validates file constraints (MIME type, extension, size).
+    3. Performs OpenCV integrity and Laplacian blur quality gatekeeping.
+    4. Executes MATLAB ResNet-18 ONNX inference + res5b_relu Grad-CAM with a strict timeout.
+    5. Automatically cleans up temporary files.
     """
+    if ai_service is None:
+        return AIServiceUnavailableResponse(
+            status="service_unavailable",
+            error="Live AI model is unavailable. Please verify MODEL_PATH and ONNX model file.",
+            details=model_error,
+        )
+
     validate_file(file)
 
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or ".jpg")[1])

@@ -1,13 +1,12 @@
 """
-NetraScan Real PyTorch AI/ML Pipeline Integration Test Suite
+NetraScan Finalized MATLAB ResNet-18 ONNX AI Pipeline Test Suite
 Verifies:
-1. Preprocessing (CLAHE LAB, Resizing to 224x224x3, PyTorch Float Normalization)
+1. MATLAB-consistent Preprocessing (Channel-wise CLAHE, 224x224x3, Float32 NCHW)
 2. Image Sharpness & Blur Gatekeeping (Laplacian variance)
-3. Live PyTorch Model Inference (Softmax, 5-Class Probabilities, Referral thresholding)
-4. Real Grad-CAM Explainability (Activations & Gradients from layer4)
+3. Live ONNX Model Inference (5-Class Probabilities, 0.35 Referable DR Decision Logic)
+4. Authentic Grad-CAM Explainability (Extracted from res5b_relu layer)
 5. FastAPI Endpoints (/health, /analyze, /report/generate)
-6. Invalid file format and corrupted input rejection
-7. Multi-tenant Screening creation and Doctor Verification
+6. Error handling for corrupted / non-image inputs
 """
 
 import os
@@ -18,12 +17,11 @@ import asyncio
 import unittest
 import numpy as np
 import cv2
-import torch
 
 from main import app
-from services.preprocessing import load_and_preprocess_fundus, apply_clahe_lab
-from services.ai_service import AIService, build_resnet18_model, ICDR_STAGE_NAMES
-from services.gradcam import GradCAM
+from services.preprocessing import load_and_preprocess_fundus
+from services.ai_service import AIService, ICDR_STAGE_NAMES
+from services.gradcam import ONNXGradCAM
 
 
 # Pure ASGI test helper
@@ -118,7 +116,7 @@ async def asgi_call(
     }
 
 
-class TestMLPipeline(unittest.IsolatedAsyncioTestCase):
+class TestONNXPipeline(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
         cls.samples_dir = os.path.join(os.path.dirname(__file__), "..", "..", "demo_samples")
@@ -130,12 +128,12 @@ class TestMLPipeline(unittest.IsolatedAsyncioTestCase):
     def test_01_preprocessing_pipeline(self):
         input_tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(self.normal_sample)
         self.assertEqual(input_tensor.shape, (1, 3, 224, 224))
+        self.assertEqual(input_tensor.dtype, np.float32)
         self.assertEqual(enhanced_rgb.shape, (224, 224, 3))
         self.assertEqual(orig_rgb.shape, (224, 224, 3))
-        self.assertTrue(torch.is_tensor(input_tensor))
 
-    # 2. Real Model Forward Pass
-    def test_02_pytorch_model_inference(self):
+    # 2. Live ONNX Model Forward Pass
+    def test_02_onnx_model_inference(self):
         ai_service = AIService()
         result = ai_service.analyze_fundus(self.normal_sample)
 
@@ -146,20 +144,15 @@ class TestMLPipeline(unittest.IsolatedAsyncioTestCase):
         # Verify sum of probabilities equals ~1.0
         prob_sum = sum(result.class_probabilities.values())
         self.assertAlmostEqual(prob_sum, 1.0, delta=0.01)
+        self.assertIsNotNone(result.model)
+        self.assertEqual(result.model.runtime, "onnxruntime")
+        self.assertEqual(result.model.target_layer, "res5b_relu")
 
-    # 3. Real Grad-CAM Generation
+    # 3. Real Grad-CAM Generation on res5b_relu
     def test_03_real_gradcam_generation(self):
-        model = build_resnet18_model(num_classes=5)
-        gradcam = GradCAM(model, model.layer4)
-
-        input_tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(self.moderate_sample)
-        heatmap = gradcam.generate_heatmap(input_tensor, target_class=2)
-
-        self.assertEqual(heatmap.shape, (7, 7))  # layer4 feature map spatial resolution in ResNet-18
-        self.assertTrue(0.0 <= heatmap.min() <= heatmap.max() <= 1.0)
-
-        overlay_data_uri = gradcam.generate_overlay_data_uri(input_tensor, orig_rgb, target_class=2)
-        self.assertTrue(overlay_data_uri.startswith("data:image/jpeg;base64,"))
+        ai_service = AIService()
+        result = ai_service.analyze_fundus(self.moderate_sample)
+        self.assertTrue(result.gradcam_image.startswith("data:image/jpeg;base64,"))
 
     # 4. Blur Gatekeeping Rejection
     def test_04_blur_quality_gatekeeper(self):
@@ -174,8 +167,12 @@ class TestMLPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(res["status_code"], 200)
         data = res["json"]
         self.assertEqual(data["status"], "healthy")
+        self.assertEqual(data["model"], "NetraScan ResNet-18")
+        self.assertTrue(data["model_loaded"])
+        self.assertEqual(data["runtime"], "onnxruntime")
         self.assertEqual(data["num_classes"], 5)
-        self.assertEqual(data["input_size"], "224x224x3")
+        self.assertEqual(data["target_layer"], "res5b_relu")
+        self.assertEqual(data["referable_threshold"], 0.35)
 
     # 6. FastAPI /analyze Live Inference
     async def test_06_api_analyze_live(self):
@@ -193,6 +190,8 @@ class TestMLPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertIn("dr_grade", data)
         self.assertIn("confidence", data)
         self.assertIn("gradcam_image", data)
+        self.assertIn("model", data)
+        self.assertEqual(data["model"]["runtime"], "onnxruntime")
         self.assertTrue(data["gradcam_image"].startswith("data:image/jpeg;base64,"))
 
     # 7. FastAPI Invalid Non-Image Input Rejection

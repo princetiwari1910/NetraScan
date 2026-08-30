@@ -32,22 +32,22 @@ function Analysis() {
     {
       icon: Sparkles,
       title: "CLAHE Preprocessing",
-      description: "Green-channel contrast enhancement in LAB space.",
+      description: "Channel-wise contrast normalization matching MATLAB pipeline.",
     },
     {
       icon: Eye,
       title: "Deep Learning Feature Extraction",
-      description: "5-Class ICDR classification via deep convolutional backbone.",
+      description: "5-Class ICDR classification via NetraScan ResNet-18 ONNX engine.",
     },
     {
       icon: Activity,
       title: "Lesion Localization & Softmax Triage",
-      description: "Biomarker detection and binary referral decision logic.",
+      description: "Biomarker detection and calibrated 0.35 referral decision logic.",
     },
     {
       icon: Brain,
       title: "Grad-CAM Explainability",
-      description: "Feature activation heatmap generation on layer4.",
+      description: "Feature activation heatmap generation on res5b_relu layer.",
     },
   ];
 
@@ -60,7 +60,7 @@ function Analysis() {
     if (isAnalyzing.current) return;
     isAnalyzing.current = true;
 
-    // Incremental progress simulation during API request
+    // Incremental progress indication during live model inference
     const progressTimer = setInterval(() => {
       setProgress((prev) => {
         if (prev < 85) {
@@ -70,7 +70,7 @@ function Analysis() {
         }
         return prev;
       });
-    }, 180);
+    }, 120);
 
     const runInference = async () => {
       try {
@@ -84,7 +84,7 @@ function Analysis() {
           setAnalysisResult(result);
           setTimeout(() => {
             navigate("/results");
-          }, 1000);
+          }, 800);
         } else if (result.status === "recapture_required") {
           setError(
             result.reason || "Image quality insufficient for clinical grading. Please recapture."
@@ -97,41 +97,9 @@ function Analysis() {
       } catch (err) {
         clearInterval(progressTimer);
         console.error("Analysis execution error:", err);
-        // Resilient fallback demonstration if backend is unreachable
-        const fallbackResult = {
-          status: "success",
-          dr_grade: 2,
-          severity_label: "Moderate Non-Proliferative Diabetic Retinopathy",
-          referable: true,
-          confidence: 0.924,
-          class_probabilities: {
-            "Grade_0_No Diabetic Retinopathy": 0.012,
-            "Grade_1_Mild Non-Proliferative Diabetic Retinopathy": 0.045,
-            "Grade_2_Moderate Non-Proliferative Diabetic Retinopathy": 0.924,
-            "Grade_3_Severe Non-Proliferative Diabetic Retinopathy": 0.015,
-            "Grade_4_Proliferative Diabetic Retinopathy": 0.004,
-          },
-          gradcam_image: preview,
-          evidence: [
-            "Multiple microaneurysms and localized intraretinal blot hemorrhages.",
-            "Hard lipid exudates identified in macula region.",
-            "Mild cotton wool spots observed in temporal arcade.",
-            "Referral indicated for comprehensive ophthalmological evaluation.",
-          ],
-          quality_metric: {
-            laplacian_variance: 168.4,
-            is_blurry: false,
-            threshold: 100.0,
-            status: "Pass",
-          },
-        };
-
-        setProgress(100);
-        setCurrentStepIndex(steps.length);
-        setAnalysisResult(fallbackResult);
-        setTimeout(() => {
-          navigate("/results");
-        }, 1000);
+        setError(
+          err.message || "Failed to communicate with NetraScan AI inference backend. Please ensure the backend is running."
+        );
       }
     };
 
@@ -176,7 +144,7 @@ function Analysis() {
               ? error
               : progress >= 100
               ? "The retinal image has completed the AI-assisted screening pipeline."
-              : "Our deep learning pipeline is executing image quality gatekeeping, 5-class ICDR triage, and Grad-CAM explainability localization."}
+              : "Our deep learning pipeline is executing image quality gatekeeping, 5-class ICDR triage, and res5b_relu Grad-CAM localization."}
           </p>
         </div>
 
@@ -193,7 +161,7 @@ function Analysis() {
             }}
           >
             <AlertTriangle size={36} color="#B42318" style={{ margin: "0 auto 12px" }} />
-            <h3 style={{ color: "#B42318", marginBottom: "8px" }}>Image Recapture Advised</h3>
+            <h3 style={{ color: "#B42318", marginBottom: "8px" }}>Diagnostic Notice</h3>
             <p style={{ color: "#7A271A", fontSize: "14px", marginBottom: "20px" }}>{error}</p>
             <Link
               to="/screening"
@@ -210,7 +178,7 @@ function Analysis() {
               }}
             >
               <RotateCcw size={16} />
-              Recapture Fundus Image
+              Return to Screening
             </Link>
           </div>
         ) : (
@@ -314,7 +282,7 @@ function Analysis() {
             <div className="analysis-disclaimer">
               <div className="shield-icon">✓</div>
               <span>
-                NetraScan AI Pipeline • Evaluates ICDR Grading with Convolutional Layer Attention Maps.
+                NetraScan ONNX AI Pipeline • Evaluates ICDR Grading with res5b_relu Attention Localization.
               </span>
             </div>
           </>

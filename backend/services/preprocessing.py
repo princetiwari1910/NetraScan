@@ -1,11 +1,10 @@
 """
 NetraScan Canonical Retinal Fundus Preprocessing Pipeline
-Ensures 100% mathematical consistency between ML Training and Live Production Inference.
-Pipeline:
-1. RGB Color Conversion & Dimension Validation
-2. LAB Color-Space CLAHE (Contrast-Limited Adaptive Histogram Equalization) on L-channel
-3. Resize to Target Dimensions (224x224x3)
-4. PyTorch Float Tensor Normalization (ImageNet mean & std)
+Reproduces the exact MATLAB preprocess_fundus.m pipeline:
+1. Validates and converts input image to RGB
+2. Resizes to 224x224x3
+3. Applies Adaptive Histogram Equalization (CLAHE) on all 3 color channels
+4. Returns NCHW float32 tensor (1, 3, 224, 224) for ONNX Runtime inference
 """
 
 import io
@@ -13,51 +12,34 @@ from typing import Tuple, Union
 import cv2
 import numpy as np
 from PIL import Image
-import torch
-import torchvision.transforms as transforms
 
-# Canonical Image Dimensions
 IMAGE_SIZE = (224, 224)
 
-# Standard ImageNet normalization parameters
-IMAGENET_MEAN = [0.485, 0.456, 0.406]
-IMAGENET_STD = [0.229, 0.224, 0.225]
 
-_torch_normalize = transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
-
-
-def apply_clahe_lab(
-    image_rgb: np.ndarray,
-    clip_limit: float = 2.0,
-    tile_grid_size: Tuple[int, int] = (8, 8),
-) -> np.ndarray:
+def apply_matlab_clahe(image_rgb: np.ndarray, clip_limit: float = 2.0) -> np.ndarray:
     """
-    Applies CLAHE on the luminance (L) channel in LAB color space.
-    Enhances subtle retinal microaneurysms, hemorrhages, and lipid exudates
-    without distorting color balance.
+    Applies adaptive histogram equalization on each RGB channel,
+    matching MATLAB's adapthisteq(img(:,:,channel), 'ClipLimit', 0.01).
     """
-    lab = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2LAB)
-    l_channel, a_channel, b_channel = cv2.split(lab)
-
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=tile_grid_size)
-    l_enhanced = clahe.apply(l_channel)
-
-    merged = cv2.merge((l_enhanced, a_channel, b_channel))
-    return cv2.cvtColor(merged, cv2.COLOR_LAB2RGB)
+    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
+    enhanced = np.zeros_like(image_rgb)
+    for c in range(3):
+        enhanced[:, :, c] = clahe.apply(image_rgb[:, :, c])
+    return enhanced
 
 
 def load_and_preprocess_fundus(
     image_source: Union[str, bytes, np.ndarray, Image.Image],
     target_size: Tuple[int, int] = IMAGE_SIZE,
-) -> Tuple[torch.Tensor, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Ingests fundus image source and executes canonical preprocessing:
+    Executes MATLAB-consistent preprocessing:
     Returns:
-        - input_tensor: torch.Tensor of shape (1, 3, 224, 224), ready for PyTorch model forward pass
+        - input_tensor: np.ndarray of shape (1, 3, 224, 224) float32 in range [0.0, 255.0] (NCHW layout)
         - enhanced_rgb: np.ndarray (224, 224, 3) uint8 image after CLAHE enhancement
         - original_rgb: np.ndarray (224, 224, 3) uint8 original resized image
     """
-    # 1. Ingest image source to RGB numpy array
+    # 1. Decode to RGB numpy array
     if isinstance(image_source, str):
         img_bgr = cv2.imread(image_source)
         if img_bgr is None:
@@ -81,18 +63,13 @@ def load_and_preprocess_fundus(
     else:
         raise TypeError(f"Unsupported image source type: {type(image_source)}")
 
-    # 2. Resize original to target resolution
+    # 2. Resize to 224x224
     resized_orig = cv2.resize(orig_rgb, target_size, interpolation=cv2.INTER_AREA)
 
-    # 3. Apply CLAHE contrast enhancement
-    enhanced_rgb = apply_clahe_lab(resized_orig, clip_limit=2.0)
+    # 3. Apply channel-wise adaptive histogram equalization
+    enhanced_rgb = apply_matlab_clahe(resized_orig, clip_limit=2.0)
 
-    # 4. Convert to normalized PyTorch float tensor
-    # Scale uint8 [0, 255] to float32 [0.0, 1.0]
-    tensor = torch.from_numpy(enhanced_rgb.transpose((2, 0, 1))).float() / 255.0
-    # Apply standard normalization
-    tensor_normalized = _torch_normalize(tensor)
-    # Add batch dimension (1, 3, H, W)
-    input_tensor = tensor_normalized.unsqueeze(0)
+    # 4. Format NCHW float32 input tensor for ONNX Runtime session
+    input_tensor = enhanced_rgb.astype(np.float32).transpose(2, 0, 1)[np.newaxis, ...]
 
     return input_tensor, enhanced_rgb, resized_orig
