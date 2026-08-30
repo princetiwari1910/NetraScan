@@ -32,7 +32,7 @@
           |
           v
 +---------+---------+
-|  EfficientNet-B4  | (5-Class ICDR Severity Classification: Grade 0 - 4)
+|  ResNet-18.       | (5-Class ICDR Severity Classification: Grade 0 - 4)
 +---------+---------+
           |
           v
