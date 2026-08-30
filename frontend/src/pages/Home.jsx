@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
   Eye,
@@ -79,7 +80,7 @@ function Home() {
           <Link to="/home" className="logo">
 
             <div className="logo-icon">
-              <Eye size={23} />
+              <ScanningEyeIcon size={24} />
             </div>
 
             <span>
@@ -1124,7 +1125,7 @@ function Home() {
 
               <div className="logo-icon">
 
-                <Eye size={20} />
+                <ScanningEyeIcon size={22} />
 
               </div>
 

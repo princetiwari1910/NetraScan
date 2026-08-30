@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import { analyzeRetinalImage, createScreening } from "../services/api";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
   Eye,
@@ -185,7 +186,7 @@ function Analysis() {
         <div className="analysis-nav-container">
           <Link to="/home" className="analysis-logo">
             <div className="analysis-logo-icon">
-              <Eye size={22} />
+              <ScanningEyeIcon size={24} />
             </div>
             <span>
               Netra<span>Scan</span>

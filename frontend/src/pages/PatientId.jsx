@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
   Eye,
@@ -67,7 +68,7 @@ function PatientId() {
           <div className="logo">
 
             <div className="logo-icon">
-              <Eye size={23} />
+              <ScanningEyeIcon size={24} />
             </div>
 
             <span>

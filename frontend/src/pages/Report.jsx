@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import {
   Eye,
   ArrowLeft,
@@ -62,7 +63,7 @@ function Report() {
       <nav className="report-navbar">
         <Link to="/home" className="report-logo">
           <div className="report-logo-icon">
-            <Eye size={21} />
+            <ScanningEyeIcon size={24} />
           </div>
           <span>
             Netra<span>Scan</span>

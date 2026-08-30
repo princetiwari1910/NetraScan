@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import {
   Eye,
   ArrowLeft,
@@ -87,7 +88,7 @@ function Screening() {
         <div className="screening-nav-container">
           <Link to="/home" className="logo">
             <div className="logo-icon">
-              <Eye size={22} />
+              <ScanningEyeIcon size={24} />
             </div>
             <span>
               Netra<span className="logo-highlight">Scan</span>

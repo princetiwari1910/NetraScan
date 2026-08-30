@@ -1,14 +1,18 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import {
-  Eye,
   Lock,
-  Building2,
+  Mail,
   ArrowRight,
   ShieldCheck,
+  Building2,
+  Stethoscope,
+  EyeOff,
+  Sparkles,
+  LoaderCircle,
   ScanSearch,
   Activity,
-  LoaderCircle,
 } from "lucide-react";
 
 import { useScreening } from "../context/ScreeningContext";
@@ -60,7 +64,7 @@ function Login() {
         <div className="login-nav-container">
           <div className="login-logo">
             <div className="login-logo-icon">
-              <Eye size={21} />
+              <ScanningEyeIcon size={24} />
             </div>
 
             <span>

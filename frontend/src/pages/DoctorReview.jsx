@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import { fetchScreenings, verifyScreening } from "../services/api";
+import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
   Eye,
@@ -79,7 +80,7 @@ export default function DoctorReview() {
         <div className="nav-container">
           <Link to="/home" className="logo">
             <div className="logo-icon">
-              <Eye size={23} />
+              <ScanningEyeIcon size={24} />
             </div>
             <span>
               Netra<span className="logo-highlight">Scan</span>
