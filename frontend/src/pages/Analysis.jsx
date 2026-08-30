@@ -1,33 +1,36 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import {
-  Eye,
-  ScanSearch,
-  Sparkles,
-  Activity,
-  Brain,
-  CircleCheck,
-  LoaderCircle,
-  AlertTriangle,
-  RotateCcw,
-} from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
 import { analyzeRetinalImage, createScreening } from "../services/api";
 
+import {
+  Eye,
+  ArrowLeft,
+  Sparkles,
+  ShieldCheck,
+  Activity,
+  Layers,
+  Brain,
+  CircleCheck,
+  AlertTriangle,
+  LoaderCircle,
+  RotateCcw,
+} from "lucide-react";
+
 function Analysis() {
   const navigate = useNavigate();
-  const { image, preview, patient, setAnalysisResult, setScreeningRecord } = useScreening();
+  const { patient, image, preview, setAnalysisResult, setScreeningRecord } = useScreening();
 
-  const [progress, setProgress] = useState(15);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [error, setError] = useState(null);
+  const [progress, setProgress] = useState(15);
+  const [error, setError] = useState("");
   const isAnalyzing = useRef(false);
 
   const steps = [
     {
-      icon: ScanSearch,
-      title: "Image Quality Assessment",
-      description: "Laplacian blur variance and resolution validation.",
+      icon: ShieldCheck,
+      title: "Strict Fundus Anatomy & Quality Gate",
+      description: "Anatomical chromaticity, FOV integrity, and Laplacian blur validation.",
     },
     {
       icon: Sparkles,
@@ -122,11 +125,17 @@ function Analysis() {
           setAnalysisResult(result);
           setTimeout(() => {
             navigate("/results");
-          }, 800);
+          }, 600);
+        } else if (result.status === "invalid_fundus") {
+          setAnalysisResult(result);
+          setTimeout(() => {
+            navigate("/results");
+          }, 300);
         } else if (result.status === "recapture_required") {
-          setError(
-            result.reason || "Image quality insufficient for clinical grading. Please recapture."
-          );
+          setAnalysisResult(result);
+          setTimeout(() => {
+            navigate("/results");
+          }, 300);
         } else {
           setError(
             result.error || "AI service encountered an issue during analysis."
@@ -135,6 +144,27 @@ function Analysis() {
       } catch (err) {
         clearInterval(progressTimer);
         console.error("Analysis execution error:", err);
+        if (err.status === "invalid_fundus" || err.errorCode === "INVALID_FUNDUS_IMAGE" || !err.validFundus) {
+          setAnalysisResult({
+            status: "invalid_fundus",
+            valid_fundus: false,
+            error_code: "INVALID_FUNDUS_IMAGE",
+            reason: err.message || "Non-fundus image detected.",
+            recommendation: err.recommendation || "Please upload a valid retinal fundus photograph. Non-medical images cannot be screened.",
+          });
+          navigate("/results");
+          return;
+        }
+        if (err.status === "recapture_required") {
+          setAnalysisResult({
+            status: "recapture_required",
+            valid_fundus: true,
+            reason: err.message || "Image quality does not meet clinical standards for grading.",
+            recommendation: err.recommendation || "Please recapture fundus photograph with proper optical focus.",
+          });
+          navigate("/results");
+          return;
+        }
         setError(
           err.message || "Failed to communicate with NetraScan AI inference backend. Please ensure the backend is running."
         );
@@ -143,188 +173,166 @@ function Analysis() {
 
     runInference();
 
-    return () => clearInterval(progressTimer);
-  }, [image, navigate, setAnalysisResult, preview, patient, setScreeningRecord]);
+    return () => {
+      clearInterval(progressTimer);
+    };
+  }, [image, navigate, patient, setAnalysisResult, setScreeningRecord]);
 
   return (
     <div className="analysis-page">
+      {/* ================= NAVBAR ================= */}
       <nav className="analysis-navbar">
-        <div className="analysis-logo">
-          <div className="analysis-logo-icon">
-            <Eye size={22} />
-          </div>
-          <span>
-            Netra<span>Scan</span>
-          </span>
-        </div>
+        <div className="analysis-nav-container">
+          <Link to="/home" className="analysis-logo">
+            <div className="analysis-logo-icon">
+              <Eye size={22} />
+            </div>
+            <span>
+              Netra<span>Scan</span>
+            </span>
+          </Link>
 
-        <div className="analysis-status">
-          <span className="status-dot"></span>
-          AI INFERENCE ACTIVE
+          <div className="analysis-nav-status">
+            <span className="analysis-status-dot"></span>
+            AI INFERENCE ACTIVE
+          </div>
         </div>
       </nav>
 
+      {/* ================= MAIN ================= */}
       <main className="analysis-main">
+        {/* ================= HEADER ================= */}
         <div className="analysis-header">
-          <span className="analysis-label">NETRASCAN AI DIAGNOSTIC CORE</span>
+          <div>
+            <span className="analysis-label">AI DIAGNOSTIC ENGINE</span>
+            <h1>Evaluating Retinal Scan</h1>
+            <p>
+              Processing fundus photograph through the strict anatomical quality gate, CLAHE normalization, and MATLAB ResNet-18 neural network.
+            </p>
+          </div>
 
-          <h1>
-            {error
-              ? "Analysis Attention Required"
-              : progress >= 100
-              ? "Analysis complete"
-              : "Analyzing retinal image"}
-            {!error && progress < 100 && <span className="loading-dots">...</span>}
-          </h1>
-
-          <p>
-            {error
-              ? error
-              : progress >= 100
-              ? "The retinal image has completed the AI-assisted screening pipeline."
-              : "Our deep learning pipeline is executing image quality gatekeeping, 5-class ICDR triage, and res5b_relu Grad-CAM localization."}
-          </p>
+          {/* Steps */}
+          <div className="analysis-steps">
+            <div className="analysis-step done">
+              <CircleCheck size={16} />
+              Image Upload
+            </div>
+            <div className="analysis-step-line done"></div>
+            <div className="analysis-step active">
+              <LoaderCircle size={16} className="spin" />
+              AI Analysis
+            </div>
+            <div className="analysis-step-line"></div>
+            <div className="analysis-step">
+              <span>3</span>
+              Results
+            </div>
+          </div>
         </div>
 
-        {error ? (
-          <div
-            style={{
-              maxWidth: "600px",
-              margin: "30px auto",
-              padding: "24px",
-              background: "#FFF1F1",
-              border: "1px solid #F3C2C2",
-              borderRadius: "16px",
-              textAlign: "center",
-            }}
-          >
-            <AlertTriangle size={36} color="#B42318" style={{ margin: "0 auto 12px" }} />
-            <h3 style={{ color: "#B42318", marginBottom: "8px" }}>Diagnostic Notice</h3>
-            <p style={{ color: "#7A271A", fontSize: "14px", marginBottom: "20px" }}>{error}</p>
-            <Link
-              to="/screening"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "10px 20px",
-                borderRadius: "10px",
-                background: "#0F172A",
-                color: "#FFFFFF",
-                fontWeight: "600",
-                fontSize: "14px",
-              }}
-            >
-              <RotateCcw size={16} />
-              Return to Screening
-            </Link>
+        {/* ================= CARD ================= */}
+        <div className="analysis-card">
+          {/* Top */}
+          <div className="analysis-card-top">
+            <div className="analysis-card-meta">
+              <span className="analysis-card-label">CURRENT PATIENT</span>
+              <h3>{patient?.name || patient?.full_name || "Rahul Sharma"}</h3>
+              <p>
+                Patient UID: {patient?.patient_uid || "NS-PUN-000001"} • Age: {patient?.age || "58"} yrs • Eye: {patient?.examined_eye || "OD - Right Eye"}
+              </p>
+            </div>
+
+            <div className="analysis-card-badge">
+              <Sparkles size={16} />
+              ResNet-18 ONNX Engine
+            </div>
           </div>
-        ) : (
-          <>
-            <div className="analysis-visual">
-              <div className="retina-ring ring-one"></div>
-              <div className="retina-ring ring-two"></div>
 
-              <div className="analysis-retina">
-                {preview ? (
-                  <img
-                    src={preview}
-                    alt="Scanning fundus"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      opacity: 0.85,
-                    }}
-                  />
-                ) : (
-                  <>
-                    <div className="retina-core"></div>
-                    <div className="retina-vessel vessel-one"></div>
-                    <div className="retina-vessel vessel-two"></div>
-                    <div className="retina-vessel vessel-three"></div>
-                    <div className="retina-vessel vessel-four"></div>
-                    <div className="retina-vessel vessel-five"></div>
-                  </>
-                )}
-
-                <div className="retina-scan-line"></div>
-                <span className="retina-point point-one"></span>
-                <span className="retina-point point-two"></span>
-                <span className="retina-point point-three"></span>
-              </div>
-
-              <div className="scan-badge">
-                {progress >= 100 ? (
-                  <>
-                    <CircleCheck size={16} />
-                    ANALYSIS COMPLETE
-                  </>
-                ) : (
-                  <>
-                    <ScanSearch size={16} />
-                    RETINAL INFERENCE SCAN
-                  </>
-                )}
+          {/* Preview & Progress */}
+          <div className="analysis-view-grid">
+            {/* Image Preview */}
+            <div className="analysis-preview-box">
+              {preview ? (
+                <img src={preview} alt="Retina Fundus Scan" />
+              ) : (
+                <div className="analysis-no-preview">No scan available</div>
+              )}
+              <div className="analysis-preview-overlay">
+                <span>{image?.name || "fundus_scan.jpg"}</span>
               </div>
             </div>
 
-            <div className="analysis-progress">
-              <div className="progress-header">
-                <span>Inference Progress</span>
-                <strong>{progress}%</strong>
-              </div>
-
-              <div className="progress-track">
-                <div className="progress-bar" style={{ width: `${progress}%` }}></div>
-              </div>
-            </div>
-
-            <div className="analysis-steps">
-              {steps.map((step, index) => {
-                const Icon = step.icon;
-                const completed = index < currentStepIndex;
-                const active = index === currentStepIndex && progress < 100;
-
-                return (
+            {/* Pipeline Stage List */}
+            <div className="analysis-pipeline">
+              <div className="analysis-progress-wrapper">
+                <div className="analysis-progress-header">
+                  <span>Diagnostic Pipeline Execution</span>
+                  <strong>{progress}%</strong>
+                </div>
+                <div className="analysis-progress-bar">
                   <div
-                    className={`analysis-step ${active ? "active" : ""} ${
-                      completed ? "completed" : ""
-                    }`}
-                    key={step.title}
+                    className="analysis-progress-fill"
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
+
+              <div className="analysis-stage-list">
+                {steps.map((step, index) => {
+                  const Icon = step.icon;
+                  const isDone = index < currentStepIndex;
+                  const isCurrent = index === currentStepIndex;
+
+                  return (
+                    <div
+                      key={index}
+                      className={`analysis-stage-item ${
+                        isDone ? "done" : isCurrent ? "current" : "pending"
+                      }`}
+                    >
+                      <div className="analysis-stage-icon">
+                        {isDone ? (
+                          <CircleCheck size={18} />
+                        ) : isCurrent ? (
+                          <LoaderCircle size={18} className="spin" />
+                        ) : (
+                          <Icon size={18} />
+                        )}
+                      </div>
+
+                      <div className="analysis-stage-text">
+                        <strong>{step.title}</strong>
+                        <span>{step.description}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Error Message if Any */}
+          {error && (
+            <div className="analysis-error-banner" style={{ marginTop: "20px" }}>
+              <AlertTriangle size={20} />
+              <div>
+                <strong>Analysis Attention:</strong>
+                <p>{error}</p>
+                <div style={{ marginTop: "10px" }}>
+                  <button
+                    type="button"
+                    className="secondary-result-button"
+                    onClick={() => navigate("/screening")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
                   >
-                    <div className="analysis-step-icon">
-                      {completed ? (
-                        <CircleCheck size={20} />
-                      ) : active ? (
-                        <LoaderCircle size={20} className="spin" />
-                      ) : (
-                        <Icon size={20} />
-                      )}
-                    </div>
-
-                    <div className="analysis-step-content">
-                      <strong>{step.title}</strong>
-                      <span>{step.description}</span>
-                    </div>
-
-                    <div className="analysis-step-number">
-                      {String(index + 1).padStart(2, "0")}
-                    </div>
-                  </div>
-                );
-              })}
+                    <RotateCcw size={16} />
+                    Back to Screening
+                  </button>
+                </div>
+              </div>
             </div>
-
-            <div className="analysis-disclaimer">
-              <div className="shield-icon">✓</div>
-              <span>
-                NetraScan ONNX AI Pipeline • Evaluates ICDR Grading with res5b_relu Attention Localization.
-              </span>
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </main>
     </div>
   );

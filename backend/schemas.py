@@ -57,13 +57,30 @@ class AnalysisRecaptureResponse(BaseModel):
     quality_metric: QualityMetric
 
 
+class AnalysisInvalidFundusResponse(BaseModel):
+    status: Literal["invalid_fundus"] = "invalid_fundus"
+    valid_fundus: bool = False
+    error_code: str = "INVALID_FUNDUS_IMAGE"
+    reason: str = Field(..., description="Explanation of why the image was identified as non-fundus")
+    recommendation: str = Field(
+        default="Please upload a valid retinal fundus photograph. Non-medical images, animals, documents, and screenshots cannot be analyzed.",
+        description="Guidance on accepted medical image formats"
+    )
+    quality_metric: Optional[QualityMetric] = None
+
+
 class AIServiceUnavailableResponse(BaseModel):
     status: Literal["service_unavailable"] = "service_unavailable"
     error: str = Field(..., description="Explanation of why AI service could not complete the analysis")
     details: Optional[str] = Field(default=None, description="Optional diagnostic details")
 
 
-AnalysisResponse = Union[AnalysisSuccessResponse, AnalysisRecaptureResponse, AIServiceUnavailableResponse]
+AnalysisResponse = Union[
+    AnalysisSuccessResponse,
+    AnalysisRecaptureResponse,
+    AnalysisInvalidFundusResponse,
+    AIServiceUnavailableResponse
+]
 
 
 # ============================================================

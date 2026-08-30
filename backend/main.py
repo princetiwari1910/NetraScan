@@ -21,6 +21,7 @@ from schemas import (
     AnalysisResponse,
     AnalysisSuccessResponse,
     AnalysisRecaptureResponse,
+    AnalysisInvalidFundusResponse,
     AIServiceUnavailableResponse,
     ReportGenerateRequest,
 )
@@ -179,13 +180,29 @@ async def analyze_fundus_image(
         else:
             print("❌ [STEP 3] IMAGE DECODE: Failed to decode image file.")
 
-        # Step 4 & 5: Quality Metric & Quality Pass/Fail Gate
-        is_gradable, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
-        print(f"📊 [STEP 4] QUALITY METRIC: Laplacian Variance = {quality_metric.laplacian_variance}, Threshold = {quality_metric.threshold}")
-        print(f"🚦 [STEP 5] QUALITY GATE: {'PASS (Proceeding to ONNX inference)' if is_gradable else 'FAIL (Recapture Required)'}")
+        # Step 4 & 5: Fundus Validity & Quality Gatekeeper
+        is_pass, gate_status, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
+        print(f"📊 [STEP 4] QUALITY METRIC: Status={quality_metric.status}, Laplacian Variance = {quality_metric.laplacian_variance}, Threshold = {quality_metric.threshold}")
 
-        if not is_gradable:
-            print(f"⚠️ Rejection Reason: {reason}")
+        if gate_status == "invalid_fundus":
+            print(f"🚫 [STEP 5] FUNDUS VALIDATION: FAILED")
+            print(f"🚫 [STEP 5] AI INFERENCE: SKIPPED")
+            print(f"🚫 [STEP 5] REASON: {reason}")
+            print(f"{'='*70}\n")
+            return AnalysisInvalidFundusResponse(
+                status="invalid_fundus",
+                valid_fundus=False,
+                error_code="INVALID_FUNDUS_IMAGE",
+                reason=reason or "Non-fundus image detected.",
+                recommendation=recommendation or "Please upload a valid retinal fundus photograph.",
+                quality_metric=quality_metric,
+            )
+
+        if gate_status == "recapture_required":
+            print(f"⚠️ [STEP 5] FUNDUS VALIDATION: PASSED")
+            print(f"⚠️ [STEP 5] QUALITY GATE: FAILED (Blurry/Ungradable)")
+            print(f"⚠️ [STEP 5] AI INFERENCE: SKIPPED")
+            print(f"⚠️ [STEP 5] REASON: {reason}")
             print(f"{'='*70}\n")
             return AnalysisRecaptureResponse(
                 status="recapture_required",
@@ -193,6 +210,10 @@ async def analyze_fundus_image(
                 recommendation=recommendation or "Please recapture with proper focus and illumination.",
                 quality_metric=quality_metric,
             )
+
+        print("✅ [STEP 5] FUNDUS VALIDATION: PASSED")
+        print("✅ [STEP 5] QUALITY GATE: PASSED (Proceeding to ONNX inference)")
+        print("🚀 [STEP 5] AI INFERENCE: EXECUTED")
 
         # Step 6 to 10: Live ONNX Preprocessing, Inference, and Grad-CAM
         try:

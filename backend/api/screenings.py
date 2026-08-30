@@ -130,15 +130,29 @@ def create_screening(
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # 3. Quality Gatekeeping
-        is_gradable, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
-        if not is_gradable:
+        # 3. Strict Fundus Anatomical & Quality Gatekeeping
+        is_pass, gate_status, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
+        if gate_status == "invalid_fundus":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "valid_fundus": False,
+                    "error_code": "INVALID_FUNDUS_IMAGE",
+                    "status": "invalid_fundus",
+                    "reason": reason or "Non-fundus image detected.",
+                    "recommendation": recommendation or "Please upload a valid retinal fundus photograph. Non-medical images cannot be screened.",
+                    "quality_metric": quality_metric.dict(),
+                }
+            )
+
+        if gate_status == "recapture_required":
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
+                    "valid_fundus": True,
                     "status": "recapture_required",
                     "reason": reason or "Image quality does not meet clinical standards for grading.",
-                    "recommendation": recommendation or "Please recapture fundus photograph with proper focus.",
+                    "recommendation": recommendation or "Please recapture fundus photograph with proper optical focus.",
                     "quality_metric": quality_metric.dict(),
                 }
             )
