@@ -14,46 +14,66 @@
 ## 🏗️ System Architecture Workflow
 
 ```text
-+-------------------+
-|  Raw Fundus Scan  | (Color fundus photograph from camera or smartphone adapter)
-+---------+---------+
-          |
-          v
-+---------+---------+
-|   Quality Gate    | (OpenCV Laplacian Variance Blur & Integrity Gatekeeper: >= 100.0)
-+---------+---------+
-          |
-          +----[ Blur / Corrupt ]---> [ Return Recapture Advice (Status 200) ]
-          |
-          v [ Passed Quality Check ]
-+---------+---------+
-|       CLAHE       | (Channel-wise Adaptive Histogram Equalization matching MATLAB preprocess_fundus.m)
-+---------+---------+
-          |
-          v
-+---------+---------+
-| MATLAB ResNet-18  | (5-Class ICDR Severity Classification: Grade 0 - 4 via ONNX Runtime)
-+---------+---------+
-          |
-          v
-+---------+---------------------------------+
-|   ICDR Grade + Grad-CAM Heatmap Overlay   | (res5b_relu Layer Explainable AI Biomarker Localization)
-+---------+---------------------------------+
-          |
-          v
-+---------+---------+
-|  Referral Triage  | (Calibrated 0.35 Referable DR Threshold: Grade 2, 3, 4 sum >= 0.35)
-+---------+---------+
-          |
-          v
-+---------+---------+
-|   Report Engine   | (Styled Clinical HTML & Printable Diagnostic Report)
-+---------+---------+
-          |
-          v
-+---------+---------+
-|  Simulink Queue   | (District Tele-Ophthalmology Patient Flow & Triage Simulation)
-+-------------------+
+                     NETRASCAN
+
+                MATLAB / SIMULINK
+                       │
+        ┌──────────────┴──────────────┐
+        │                             │
+   AI Validation              System Simulation
+        │                             │
+ Fundus Processing             PHC Queues
+ ResNet-18                     Doctor Pool
+ Grad-CAM                      Referrals
+        │                             │
+        └──────────────┬──────────────┘
+                       │
+                  ONNX Model
+                       │
+                    FastAPI
+                       │
+                   Frontend
+```
+
+---
+
+## 🧠 MATLAB & Simulink Architecture
+
+NetraScan provides a complete dual-layer MATLAB & Simulink simulation framework:
+
+### 1. Visual AI Inference Pipeline (`NetraScan_Simulink.slx`)
+The clinical image analysis model consists of 8 hierarchical subsystems:
+1. **Fundus Image Input**: Ingests high-resolution retinal fundus photographs.
+2. **Image Quality Gate**: Computes Laplacian blur variance ($\text{Threshold} = 35.0$) with retinal ROI segmentation.
+3. **Fundus Preprocessing**: Applies exact channel-wise Adaptive Histogram Equalization (`adapthisteq`, `ClipLimit=0.01`) and $224 \times 224$ resizing.
+4. **ResNet-18 Inference**: Evaluates the finalized MATLAB ResNet-18 network producing 5-class Softmax probabilities and `res5b_relu` feature activations.
+5. **ICDR Classification**: Computes predicted ICDR stage (Grade 0 to 4) and confidence %.
+6. **Referable Decision**: Evaluates $\sum_{g=2}^4 P(g) \ge 0.35$ for specialist escalation.
+7. **Explainability / Grad-CAM**: Generates localization heatmaps overlaying microaneurysms and hemorrhages.
+8. **Clinical Output**: Dashboard displaying predicted grade, confidence, and referral status.
+
+### 2. District Tele-Ophthalmology Fleet Simulation (`simulink/scripts/patient_queue_sim.m`)
+- Simulates patient screening flows across multi-PHC networks (Pune, Mumbai, Delhi, Hyderabad, Nagpur).
+- Evaluates arrival rates ($80\text{ patients/day/PHC}$), AI screening throughput ($1\text{ patient/min}$), and ophthalmologist workload reduction ($80\%$ local resolution, $20\%$ specialist escalation).
+
+### Running MATLAB / Simulink Workflows:
+```matlab
+% 1. Setup paths and load ONNX model into MATLAB workspace
+cd simulink/scripts
+simConfig = setup_netrascan_sim();
+
+% 2. Run single-image simulation
+results = run_netrascan_sim('../../demo_samples/fundus_grade0_normal.jpg');
+
+% 3. Open interactive Simulink model
+open_system('NetraScan_Simulink.slx');
+sim('NetraScan_Simulink');
+
+% 4. Run cross-platform equivalence test (Simulink vs ONNX)
+validationReport = validate_simulink_vs_onnx();
+
+% 5. Run district capacity queue simulation
+simReport = patient_queue_sim();
 ```
 
 ---
@@ -62,99 +82,54 @@
 
 ```text
 NetraScan/
-├── backend/                       # FastAPI backend services, schemas, and API routes
-│   ├── main.py                    # Application entrypoint & dynamic AI service loader
+├── backend/                       # FastAPI backend services, database, auth & REST API
+│   ├── main.py                    # Application entrypoint & live AI service loader
 │   ├── schemas.py                 # Pydantic data contracts & response models
-│   ├── requirements.txt           # Python dependency specifications (onnxruntime, fastapi, opencv)
-│   ├── services/
-│   │   ├── ai_service.py          # Finalized MATLAB ResNet-18 ONNX Runtime inference service
-│   │   ├── preprocessing.py       # MATLAB-consistent channel-wise CLAHE preprocessing
-│   │   ├── gradcam.py             # Authentic res5b_relu Grad-CAM / CAM explainability engine
-│   │   ├── file_validation_service.py # Image integrity & Laplacian blur gatekeeper
-│   │   ├── mock_ai_service.py     # Mock AI service for offline UI development
-│   │   └── report_service.py      # Clinical HTML report generator & storage
-│   └── tests/
-│       └── test_ml_pipeline.py    # Automated test suite for ONNX inference & Grad-CAM
+│   ├── core/                      # Security, JWT auth, environment configuration
+│   ├── db/                        # PostgreSQL/SQLite database models, sessions, seeds
+│   ├── api/                       # REST routers (auth, patients, screenings, phcs, dashboard)
+│   ├── services/                  # ONNX inference, CLAHE preprocessing, Grad-CAM, Quality gate
+│   └── tests/                     # Automated test suites for database & ML pipeline
 │
 ├── frontend/                      # Web user interface & tele-ophthalmology dashboard
 │   ├── src/                       # React / Vite components, pages, context, and styles
-│   ├── public/                    # Static assets, branding, sample fundus images
-│   └── package.json               # Frontend dependencies & build scripts
+│   └── public/                    # Static assets, branding, sample fundus images
 │
-├── ml-training/                   # Deep learning models, MATLAB preprocessing & explainability
+├── ml-training/                   # MATLAB training references & finalized ONNX model
 │   ├── models/
-│   │   └── NetraScan_ResNet18.onnx # Finalized 5-class MATLAB ResNet-18 ONNX model
+│   │   └── NetraScan_ResNet18.onnx # Finalized 5-class MATLAB ResNet-18 ONNX model (44.78 MB)
 │   ├── preprocessing/
 │   │   └── preprocess_fundus.m    # Canonical MATLAB preprocessing reference
 │   └── explainability/
 │       └── NetraScan_Explainability.m # MATLAB Grad-CAM reference implementation
 │
-├── demo_samples/                  # Validated sample fundus scans (Normal, Moderate DR, Blurry)
-└── simulink/                      # District workflow & tele-ophthalmology capacity models
+├── simulink/                      # Simulink models, simulation scripts & queue models
+│   ├── NetraScan_Simulink.slx     # 8-stage visual AI inference Simulink model
+│   ├── scripts/                   # MATLAB execution, setup, and validation scripts
+│   └── data/                      # District triage logs and queue benchmarks
+│
+└── demo_samples/                  # Validated sample fundus scans (Normal, Moderate DR, Blurry)
 ```
 
 ---
 
-## ⚡ Backend Quickstart
+## ⚡ Quickstart
 
-### 1. Environment Setup
-
+### 1. Run Backend Server
 ```bash
-# Navigate to backend directory
 cd backend
-
-# Create and activate virtual environment
-python3 -m venv ../venv
-source ../venv/bin/activate  # On Windows: ..\venv\Scripts\activate
-
-# Install required dependencies
-pip install -r requirements.txt
+../venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-### 2. Run Modes
-
-#### 🔴 Live AI Mode (Production: Finalized MATLAB ResNet-18 ONNX Model)
+### 2. Run Frontend Portal
 ```bash
-export NETRASCAN_USE_MOCK=false
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+cd frontend
+npm run dev
 ```
 
-#### 🟢 Mock Mode (Offline UI development without ONNX model)
+### 3. Run Automated Tests
 ```bash
-export NETRASCAN_USE_MOCK=true
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+cd backend
+../venv/bin/python -m unittest discover -s tests
+../venv/bin/python ../test_auth_audit.py
 ```
-
-Interactive Swagger API docs available at: `http://127.0.0.1:8000/docs`
-
----
-
-## 📡 API Endpoints Specification
-
-| Method | Endpoint | Description | Payload / Query | Response Type |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/health` | System health, model name (`NetraScan ResNet-18`), runtime (`onnxruntime`), target layer (`res5b_relu`) | None | `HealthResponse` (JSON) |
-| `POST` | `/analyze` | Fundus image quality check, 5-class DR classification, res5b_relu Grad-CAM | `file: UploadFile` (multipart) | `AnalysisResponse` (Union) |
-| `POST` | `/report/generate` | Generates & persists branded clinical HTML report | `ReportGenerateRequest` (JSON) | `{ status, report_id, view_url, download_url }` |
-| `GET` | `/report/{id}` | Views report in browser or downloads file (`?download=true`) | `id: str`, `download: bool` | `text/html` |
-
----
-
-## 🎯 Clinical Validation Targets & Final Measured Metrics
-
-| Clinical Metric | Target Benchmark | Measured Performance | Clinical Justification |
-| :--- | :--- | :--- | :--- |
-| **Model Architecture** | ResNet-18 (224x224x3) | **MATLAB ResNet-18 ONNX** | Finalized deep convolutional model. |
-| **Referable DR Sensitivity** | **$> 90.0\%$** | **$95.07\%$** | Minimizes false negatives for sight-threatening DR (Grade $\ge 2$). |
-| **Referable DR Specificity** | **$> 85.0\%$** | **$90.80\%$** | Prevents overwhelming tertiary referral centers with false positives. |
-| **Overall Accuracy** | **$> 75.0\%$** | **$78.32\%$** | Multi-class ICDR grading accuracy. |
-| **Referable Decision Threshold** | **0.35** | **0.35** | Calibrated probability threshold for Grade 2+ referral. |
-| **Quality Gate Filtering** | **Laplacian $\ge 100.0$** | **100% Reject Blur** | Rejects ungradable/blurry fundus images prior to inference. |
-| **Explainability (Grad-CAM)** | `res5b_relu` | **Real CAM Layer** | Attention maps on retinal lesions and vascular abnormalities. |
-| **Inference Latency** | **$< 500$ ms** | **$\approx 22$ ms / image** | Real-time point-of-care screening in tele-ophthalmology clinics. |
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
