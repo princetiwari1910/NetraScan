@@ -24,7 +24,7 @@ export const getAuthHeaders = () => {
   return {};
 };
 
-const handleAuthError = (status) => {
+export const handleAuthError = (status) => {
   if (status === 401) {
     localStorage.removeItem("netrascan_token");
     localStorage.removeItem("netrascan_user");
@@ -232,7 +232,7 @@ export const fetchPatientScreenings = async (patientId) => {
 // ============================================================
 export const createScreening = async (patientId, examinedEye, file) => {
   const formData = new FormData();
-  formData.append("patient_id", parseInt(patientId, 10));
+  formData.append("patient_id", String(patientId));
   formData.append("examined_eye", examinedEye || "OD - Right Eye");
   formData.append("file", file);
 
@@ -247,15 +247,21 @@ export const createScreening = async (patientId, examinedEye, file) => {
     handleAuthError(response.status);
     const err = await response.json().catch(() => ({}));
     const detail = err.detail;
-    if (typeof detail === "object") {
+
+    if (typeof detail === "object" && detail !== null) {
       const errorObj = new Error(detail.reason || detail.message || "Screening validation failed.");
-      errorObj.errorCode = detail.error_code || "SCREENING_FAILED";
+      errorObj.httpStatus = response.status;
+      errorObj.errorCode = detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "SCREENING_FAILED");
       errorObj.recommendation = detail.recommendation;
       errorObj.validFundus = detail.valid_fundus;
       errorObj.status = detail.status;
       throw errorObj;
     }
-    throw new Error(detail || `Screening failed with HTTP status ${response.status}`);
+
+    const errorObj = new Error(typeof detail === "string" ? detail : `Screening failed with HTTP status ${response.status}`);
+    errorObj.httpStatus = response.status;
+    errorObj.errorCode = response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
+    throw errorObj;
   }
 
   return await response.json();
@@ -350,7 +356,6 @@ export const openClinicalReport = async (screeningId, download = false) => {
         reportWindow.document.write(htmlContent);
         reportWindow.document.close();
       } else {
-        // If popup blocked, create blob URL
         const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
         const blobUrl = URL.createObjectURL(blob);
         window.open(blobUrl, "_blank");
@@ -394,17 +399,23 @@ export const analyzeRetinalImage = async (file) => {
     handleAuthError(response.status);
     const errorData = await response.json().catch(() => ({}));
     const detail = errorData.detail;
-    if (typeof detail === "object") {
+
+    if (typeof detail === "object" && detail !== null) {
       const errorObj = new Error(detail.reason || detail.message || "Analysis failed.");
-      errorObj.errorCode = detail.error_code || "ANALYSIS_FAILED";
+      errorObj.httpStatus = response.status;
+      errorObj.errorCode = detail.error_code || (response.status === 400 ? "INVALID_FUNDUS_IMAGE" : "ANALYSIS_FAILED");
       errorObj.recommendation = detail.recommendation;
       errorObj.validFundus = detail.valid_fundus;
       errorObj.status = detail.status;
       throw errorObj;
     }
-    throw new Error(
-      errorData.detail || errorData.message || `Analysis failed with HTTP ${response.status}`
+
+    const errorObj = new Error(
+      typeof detail === "string" ? detail : errorData.message || `Analysis failed with HTTP ${response.status}`
     );
+    errorObj.httpStatus = response.status;
+    errorObj.errorCode = response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SERVER_ERROR";
+    throw errorObj;
   }
 
   return await response.json();
