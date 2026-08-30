@@ -6,11 +6,15 @@ import tempfile
 import cv2
 from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status
+from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status, Depends
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
 from core.config import settings
+from core.security import get_current_user
+from db.session import get_db
+from db.models import User, Patient, Screening, PHC
 from db.seed import init_db, seed_data
 from schemas import (
     HealthResponse,
@@ -123,25 +127,32 @@ async def health_check():
 
 
 # -----------------------------------------------------------------------------
-# Direct Inference & Triage Endpoints
+# Direct Inference & Triage Endpoints (Authenticated)
 # -----------------------------------------------------------------------------
 @app.post("/analyze", response_model=AnalysisResponse, tags=["Inference & Triage"])
-async def analyze_fundus_image(file: UploadFile = File(...)):
+async def analyze_fundus_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
-    Analyzes an uploaded retinal fundus image:
-    1. IMAGE UPLOAD & VALIDATION
-    2. IMAGE DECODE & DIMENSIONS
-    3. QUALITY METRIC (Laplacian variance)
-    4. QUALITY GATE (PASS / RECAPTURE)
-    5. MATLAB-CONSISTENT PREPROCESSING (224x224x3 CLAHE)
-    6. ONNX INFERENCE (NetraScan ResNet-18)
-    7. 5-CLASS PROBABILITIES & PREDICTED GRADE
-    8. 0.35 REFERABLE DR DECISION
-    9. res5b_relu GRAD-CAM EXPLAINABILITY
+    Analyzes an uploaded retinal fundus image with JWT authentication:
+    1. AUTHENTICATE USER & CHECK PHC TENANCY
+    2. IMAGE UPLOAD & VALIDATION
+    3. IMAGE DECODE & DIMENSIONS
+    4. QUALITY METRIC (Laplacian variance)
+    5. QUALITY GATE (PASS / RECAPTURE)
+    6. MATLAB-CONSISTENT PREPROCESSING (224x224x3 CLAHE)
+    7. ONNX INFERENCE (NetraScan ResNet-18)
+    8. 5-CLASS PROBABILITIES & PREDICTED GRADE
+    9. 0.35 REFERABLE DR DECISION
+    10. res5b_relu GRAD-CAM EXPLAINABILITY
+    11. PERSIST SCREENING IN DATABASE
     """
     filename = file.filename or "unknown_upload.jpg"
     print(f"\n{'='*70}")
-    print(f"📥 [STEP 1] IMAGE UPLOAD: Received file '{filename}' (Content-Type: {file.content_type})")
+    print(f"📥 [STEP 1] AUTHENTICATED REQUEST: User '{current_user.name}' ({current_user.role}, PHC ID: {current_user.phc_id})")
+    print(f"📥 [STEP 2] IMAGE UPLOAD: Received file '{filename}' (Content-Type: {file.content_type})")
 
     if ai_service is None:
         print("❌ AI Service is unavailable (Model not loaded).")
@@ -160,18 +171,18 @@ async def analyze_fundus_image(file: UploadFile = File(...)):
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        # Step 2: Image Decode & Dimensions
+        # Step 3: Image Decode & Dimensions
         img_check = cv2.imread(temp_path)
         if img_check is not None:
             h, w = img_check.shape[:2]
-            print(f"🔍 [STEP 2] IMAGE DECODE: Success, Dimensions = {w}x{h}, Channels = {img_check.shape[2]}")
+            print(f"🔍 [STEP 3] IMAGE DECODE: Success, Dimensions = {w}x{h}, Channels = {img_check.shape[2]}")
         else:
-            print("❌ [STEP 2] IMAGE DECODE: Failed to decode image file.")
+            print("❌ [STEP 3] IMAGE DECODE: Failed to decode image file.")
 
-        # Step 3 & 4: Quality Metric & Quality Pass/Fail Gate
+        # Step 4 & 5: Quality Metric & Quality Pass/Fail Gate
         is_gradable, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
-        print(f"📊 [STEP 3] QUALITY METRIC: Laplacian Variance = {quality_metric.laplacian_variance}, Threshold = {quality_metric.threshold}")
-        print(f"🚦 [STEP 4] QUALITY GATE: {'PASS (Proceeding to ONNX inference)' if is_gradable else 'FAIL (Recapture Required)'}")
+        print(f"📊 [STEP 4] QUALITY METRIC: Laplacian Variance = {quality_metric.laplacian_variance}, Threshold = {quality_metric.threshold}")
+        print(f"🚦 [STEP 5] QUALITY GATE: {'PASS (Proceeding to ONNX inference)' if is_gradable else 'FAIL (Recapture Required)'}")
 
         if not is_gradable:
             print(f"⚠️ Rejection Reason: {reason}")
@@ -183,13 +194,13 @@ async def analyze_fundus_image(file: UploadFile = File(...)):
                 quality_metric=quality_metric,
             )
 
-        # Step 5 to 9: Live ONNX Preprocessing, Inference, and Grad-CAM
+        # Step 6 to 10: Live ONNX Preprocessing, Inference, and Grad-CAM
         try:
             analysis_result = await asyncio.wait_for(
                 asyncio.to_thread(ai_service.analyze_fundus, temp_path, filename),
                 timeout=ANALYSIS_TIMEOUT_SECONDS,
             )
-            print(f"🎯 [STEP 9] FINAL RESPONSE: Grade={analysis_result.dr_grade}, Confidence={analysis_result.confidence*100:.2f}%, Referable={analysis_result.referable}")
+            print(f"🎯 [STEP 10] FINAL RESPONSE: Grade={analysis_result.dr_grade}, Confidence={analysis_result.confidence*100:.2f}%, Referable={analysis_result.referable}")
             print(f"{'='*70}\n")
             return analysis_result
         except asyncio.TimeoutError:
@@ -216,13 +227,20 @@ async def analyze_fundus_image(file: UploadFile = File(...)):
 
 
 @app.post("/api/predict", response_model=AnalysisResponse, tags=["Inference & Triage"], include_in_schema=False)
-async def legacy_predict(file: UploadFile = File(...)):
-    """Legacy alias endpoint for backward compatibility."""
-    return await analyze_fundus_image(file=file)
+async def legacy_predict(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Legacy alias endpoint for backward compatibility (Authenticated)."""
+    return await analyze_fundus_image(file=file, current_user=current_user, db=db)
 
 
 @app.post("/report/generate", tags=["Reports"])
-async def generate_clinical_report(request: ReportGenerateRequest):
+async def generate_clinical_report(
+    request: ReportGenerateRequest,
+    current_user: User = Depends(get_current_user),
+):
     """Generates and persists standardized printable HTML clinical report."""
     report_id = f"NTR-{uuid.uuid4().hex[:8].upper()}"
     html_content = ReportService.generate_html_report(

@@ -9,9 +9,20 @@ const API_BASE_URL = (
 ).replace(/\/$/, "");
 
 // Helper to retrieve stored JWT token
-const getAuthHeaders = () => {
+export const getAuthHeaders = () => {
   const token = localStorage.getItem("netrascan_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (token && token.trim() && token !== "undefined" && token !== "null") {
+    return { Authorization: `Bearer ${token.trim()}` };
+  }
+  return {};
+};
+
+const handleAuthError = (status) => {
+  if (status === 401) {
+    // If token is invalid or expired, clean up stale token
+    localStorage.removeItem("netrascan_token");
+    localStorage.removeItem("netrascan_user");
+  }
 };
 
 // ============================================================
@@ -60,11 +71,13 @@ export const loginUser = async (email, password) => {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Authentication failed.");
+    throw new Error(err.detail || "Authentication failed. Please check credentials.");
   }
 
   const data = await response.json();
-  localStorage.setItem("netrascan_token", data.access_token);
+  if (data.access_token) {
+    localStorage.setItem("netrascan_token", data.access_token);
+  }
   return data;
 };
 
@@ -74,6 +87,7 @@ export const fetchCurrentUser = async () => {
   });
 
   if (!response.ok) {
+    handleAuthError(response.status);
     throw new Error("Unable to fetch current user profile.");
   }
   return await response.json();
@@ -86,7 +100,10 @@ export const fetchPHCs = async () => {
   const response = await fetch(`${API_BASE_URL}/phcs`, {
     headers: { ...getAuthHeaders() },
   });
-  if (!response.ok) throw new Error("Failed to fetch PHCs.");
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error("Failed to fetch PHCs.");
+  }
   return await response.json();
 };
 
@@ -102,7 +119,10 @@ export const fetchPatients = async (query = "") => {
     headers: { ...getAuthHeaders() },
   });
 
-  if (!response.ok) throw new Error("Failed to fetch patient list.");
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error("Failed to fetch patient list.");
+  }
   return await response.json();
 };
 
@@ -117,6 +137,7 @@ export const createPatient = async (patientData) => {
   });
 
   if (!response.ok) {
+    handleAuthError(response.status);
     const err = await response.json().catch(() => ({}));
     throw new Error(err.detail || "Failed to register new patient.");
   }
@@ -128,7 +149,10 @@ export const fetchPatientDetails = async (patientId) => {
   const response = await fetch(`${API_BASE_URL}/patients/${patientId}`, {
     headers: { ...getAuthHeaders() },
   });
-  if (!response.ok) throw new Error(`Failed to fetch patient #${patientId}`);
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error(`Failed to fetch patient #${patientId}`);
+  }
   return await response.json();
 };
 
@@ -136,7 +160,10 @@ export const fetchPatientScreenings = async (patientId) => {
   const response = await fetch(`${API_BASE_URL}/patients/${patientId}/screenings`, {
     headers: { ...getAuthHeaders() },
   });
-  if (!response.ok) throw new Error("Failed to fetch patient screening history.");
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error("Failed to fetch patient screening history.");
+  }
   return await response.json();
 };
 
@@ -156,6 +183,7 @@ export const createScreening = async (patientId, examinedEye, file) => {
   });
 
   if (!response.ok) {
+    handleAuthError(response.status);
     const err = await response.json().catch(() => ({}));
     const detail = err.detail;
     if (typeof detail === "object" && detail.reason) {
@@ -176,7 +204,10 @@ export const fetchScreenings = async (verified = null) => {
   const response = await fetch(url, {
     headers: { ...getAuthHeaders() },
   });
-  if (!response.ok) throw new Error("Failed to fetch screening records.");
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error("Failed to fetch screening records.");
+  }
   return await response.json();
 };
 
@@ -194,6 +225,7 @@ export const verifyScreening = async (screeningId, decision, notes) => {
   });
 
   if (!response.ok) {
+    handleAuthError(response.status);
     const err = await response.json().catch(() => ({}));
     throw new Error(err.detail || "Doctor verification failed.");
   }
@@ -204,12 +236,15 @@ export const fetchDashboardStats = async () => {
   const response = await fetch(`${API_BASE_URL}/dashboard/stats`, {
     headers: { ...getAuthHeaders() },
   });
-  if (!response.ok) throw new Error("Failed to fetch dashboard statistics.");
+  if (!response.ok) {
+    handleAuthError(response.status);
+    throw new Error("Failed to fetch dashboard statistics.");
+  }
   return await response.json();
 };
 
 // ============================================================
-// DIRECT AI INFERENCE (PRESERVED & BACKWARDS COMPATIBLE)
+// DIRECT AI INFERENCE (AUTHENTICATED & BACKWARDS COMPATIBLE)
 // ============================================================
 export const analyzeRetinalImage = async (file) => {
   if (!file) {
@@ -221,17 +256,20 @@ export const analyzeRetinalImage = async (file) => {
 
   let response = await fetch(`${API_BASE_URL}/analyze`, {
     method: "POST",
+    headers: { ...getAuthHeaders() },
     body: formData,
   });
 
   if (response.status === 404) {
     response = await fetch(`${API_BASE_URL}/api/predict`, {
       method: "POST",
+      headers: { ...getAuthHeaders() },
       body: formData,
     });
   }
 
   if (!response.ok) {
+    handleAuthError(response.status);
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
       errorData.detail || errorData.message || `Analysis failed (${response.status})`
@@ -244,13 +282,13 @@ export const analyzeRetinalImage = async (file) => {
 export const generateClinicalReport = async (patientInfo, analysisResult) => {
   const payload = {
     patient_info: {
-      patient_id: patientInfo.id || "NS-2026-001",
-      name: patientInfo.name || "Anonymous Patient",
+      patient_id: patientInfo.id || patientInfo.patient_id || "NS-2026-001",
+      name: patientInfo.name || patientInfo.full_name || "Anonymous Patient",
       age: parseInt(patientInfo.age, 10) || 58,
       gender: patientInfo.gender || "Male",
       examined_eye: patientInfo.examined_eye || "OD - Right Eye",
       diabetes_type: patientInfo.diabetes_status || "Type 2",
-      duration_years: patientInfo.diabetes_duration ? parseInt(patientInfo.diabetes_duration, 10) : 8,
+      duration_years: patientInfo.diabetes_duration ? parseInt(String(patientInfo.diabetes_duration).replace(/\D/g, "") || "8", 10) : 8,
       clinician_notes: patientInfo.medical_notes || "Automated preliminary screening via NetraScan AI.",
     },
     analysis_result: analysisResult,
@@ -266,6 +304,7 @@ export const generateClinicalReport = async (patientInfo, analysisResult) => {
   });
 
   if (!response.ok) {
+    handleAuthError(response.status);
     throw new Error("Report generation failed");
   }
 

@@ -6,16 +6,15 @@ const ScreeningContext = createContext(null);
 export function ScreeningProvider({ children }) {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem("netrascan_user");
-    return savedUser
-      ? JSON.parse(savedUser)
-      : {
-          id: 3,
-          name: "Suresh Shinde",
-          role: "STAFF",
-          phc_id: 1,
-          phc_code: "PUNE",
-          phc_name: "Primary Health Centre Pune",
-        };
+    const savedToken = localStorage.getItem("netrascan_token");
+    if (savedUser && savedToken) {
+      try {
+        return JSON.parse(savedUser);
+      } catch {
+        return null;
+      }
+    }
+    return null;
   });
 
   const [patient, setPatient] = useState({
@@ -59,19 +58,24 @@ export function ScreeningProvider({ children }) {
           setUser(u);
           localStorage.setItem("netrascan_user", JSON.stringify(u));
         })
-        .catch(() => {
-          // Keep current user state
+        .catch((err) => {
+          console.warn("Token expired or invalid:", err);
+          setUser(null);
+          localStorage.removeItem("netrascan_user");
+          localStorage.removeItem("netrascan_token");
         });
     }
   }, []);
 
   // Backwards compatible PHC object
-  const phc = {
-    id: user?.phc_code ? `PHC-${user.phc_code}-001` : "PHC-PUNE-001",
-    name: user?.phc_name || "Primary Health Centre Pune",
-    location: user?.phc_name || "Pune, Maharashtra",
-    code: user?.phc_code || "PUNE",
-  };
+  const phc = user
+    ? {
+        id: user.phc_code ? `PHC-${user.phc_code}-001` : "PHC-PUNE-001",
+        name: user.phc_name || "Primary Health Centre Pune",
+        location: user.phc_name || "Pune, Maharashtra",
+        code: user.phc_code || "PUNE",
+      }
+    : null;
 
   const loginUserContext = (authResponse) => {
     const u = authResponse.user;

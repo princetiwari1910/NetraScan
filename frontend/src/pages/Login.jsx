@@ -8,43 +8,45 @@ import {
   ShieldCheck,
   ScanSearch,
   Activity,
+  LoaderCircle,
 } from "lucide-react";
 
 import { useScreening } from "../context/ScreeningContext";
+import { loginUser } from "../services/api";
 
 function Login() {
   const navigate = useNavigate();
   const { loginPhc } = useScreening();
 
-  const [phcId, setPhcId] = useState("");
-  const [password, setPassword] = useState("");
+  const [phcId, setPhcId] = useState("PHC-PUNE-001");
+  const [password, setPassword] = useState("NetraScan@123");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-
     setError("");
 
-    if (!phcId || !password) {
-      setError("Please enter PHC ID and password.");
+    const identifier = phcId.trim();
+    const pass = password.trim();
+
+    if (!identifier || !pass) {
+      setError("Please enter PHC ID/Email and password.");
       return;
     }
 
-    if (
-      phcId !== "PHC-PUNE-001" ||
-      password !== "NetraScan@123"
-    ) {
-      setError("Invalid PHC ID or password.");
-      return;
+    setLoading(true);
+    try {
+      // Authenticate against FastAPI backend POST /auth/login
+      const authData = await loginUser(identifier, pass);
+      loginPhc(authData);
+      navigate("/home");
+    } catch (err) {
+      console.error("Login failed:", err);
+      setError(err.message || "Invalid PHC ID or password. Please verify credentials.");
+    } finally {
+      setLoading(false);
     }
-
-    loginPhc({
-      id: "PHC-PUNE-001",
-      name: "Primary Health Centre",
-      location: "Pune, Maharashtra",
-    });
-
-    navigate("/home");
   };
 
   return (
@@ -155,7 +157,7 @@ function Login() {
             <form onSubmit={handleLogin}>
               {/* PHC ID */}
               <div className="login-field">
-                <label htmlFor="phc-id">PHC ID</label>
+                <label htmlFor="phc-id">PHC ID or Email</label>
 
                 <div className="login-input-wrapper">
                   <Building2 size={18} />
@@ -163,9 +165,10 @@ function Login() {
                   <input
                     id="phc-id"
                     type="text"
-                    placeholder="Enter PHC ID (e.g. PHC-PUNE-001)"
+                    placeholder="e.g. PHC-PUNE-001 or staff.pune@netrascan.org"
                     value={phcId}
                     onChange={(e) => setPhcId(e.target.value)}
+                    autoComplete="username"
                   />
                 </div>
               </div>
@@ -183,6 +186,7 @@ function Login() {
                     placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
                   />
                 </div>
               </div>
@@ -191,9 +195,18 @@ function Login() {
               {error && <div className="login-error">{error}</div>}
 
               {/* Button */}
-              <button type="submit" className="login-submit-button">
-                Continue to PHC Portal
-                <ArrowRight size={18} />
+              <button type="submit" className="login-submit-button" disabled={loading}>
+                {loading ? (
+                  <>
+                    <LoaderCircle size={18} className="spin" />
+                    Authenticating...
+                  </>
+                ) : (
+                  <>
+                    Continue to PHC Portal
+                    <ArrowRight size={18} />
+                  </>
+                )}
               </button>
             </form>
 

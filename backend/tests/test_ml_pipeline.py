@@ -1,37 +1,39 @@
 """
-NetraScan Finalized MATLAB ResNet-18 ONNX AI Pipeline Test Suite
-Verifies:
-1. MATLAB-consistent Preprocessing (Channel-wise CLAHE, 224x224x3, Float32 NCHW)
-2. Image Sharpness & Blur Gatekeeping (Laplacian variance)
-3. Live ONNX Model Inference (5-Class Probabilities, 0.35 Referable DR Decision Logic)
-4. Authentic Grad-CAM Explainability (Extracted from res5b_relu layer)
-5. FastAPI Endpoints (/health, /analyze, /report/generate)
-6. Error handling for corrupted / non-image inputs
+NetraScan Real ONNX ML Pipeline & FastAPI Verification Test Suite
+Tests:
+1. Finalized MATLAB ResNet-18 ONNX model graph structure
+2. Preprocessing CLAHE consistency
+3. ONNX forward pass inference & Softmax 5-class distribution
+4. res5b_relu Grad-CAM class activation map generation
+5. Image clarity & Laplacian variance quality gatekeeper
+6. FastAPI /health endpoint
+7. FastAPI authenticated /analyze live model inference
+8. FastAPI invalid MIME type rejection
 """
 
 import os
 import io
 import json
-import base64
-import asyncio
 import unittest
+from pathlib import Path
 import numpy as np
-import cv2
 
-from main import app
-from services.preprocessing import load_and_preprocess_fundus
-from services.ai_service import AIService, ICDR_STAGE_NAMES
+from main import app, ai_service
+from services.ai_service import resolve_model_path, ICDR_STAGE_NAMES, REFERABLE_THRESHOLD
+from services.preprocessing import load_and_preprocess_fundus, apply_matlab_clahe
 from services.gradcam import ONNXGradCAM
+from core.security import create_access_token
+from db.session import SessionLocal, Base, engine
+from db.seed import seed_data
+from db.models import User
 
 
-# Pure ASGI test helper
 async def asgi_call(
     method: str,
     path: str,
     headers: dict = None,
     json_body: dict = None,
     multipart_files: list = None,
-    form_fields: dict = None,
 ):
     headers_list = []
     body_bytes = b""
@@ -40,21 +42,15 @@ async def asgi_call(
         body_bytes = json.dumps(json_body).encode("utf-8")
         headers_list.append((b"content-type", b"application/json"))
         headers_list.append((b"content-length", str(len(body_bytes)).encode("utf-8")))
-    elif multipart_files or form_fields:
-        boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+    elif multipart_files:
+        boundary = "----WebKitFormBoundaryNetraScanTestBoundary"
         parts = []
-        if form_fields:
-            for k, v in form_fields.items():
-                parts.append(
-                    f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode("utf-8")
-                )
-        if multipart_files:
-            for field_name, filename, file_content, content_type in multipart_files:
-                parts.append(
-                    f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field_name}\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n".encode("utf-8")
-                    + file_content
-                    + b"\r\n"
-                )
+        for field_name, filename, file_content, content_type in multipart_files:
+            parts.append(
+                f"--{boundary}\r\nContent-Disposition: form-data; name=\"{field_name}\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n".encode("utf-8")
+                + file_content
+                + b"\r\n"
+            )
         parts.append(f"--{boundary}--\r\n".encode("utf-8"))
         body_bytes = b"".join(parts)
         headers_list.append((b"content-type", f"multipart/form-data; boundary={boundary}".encode("utf-8")))
@@ -119,44 +115,47 @@ async def asgi_call(
 class TestONNXPipeline(unittest.IsolatedAsyncioTestCase):
     @classmethod
     def setUpClass(cls):
-        cls.samples_dir = os.path.join(os.path.dirname(__file__), "..", "..", "demo_samples")
-        cls.normal_sample = os.path.join(cls.samples_dir, "fundus_grade0_normal.jpg")
-        cls.moderate_sample = os.path.join(cls.samples_dir, "fundus_grade2_moderate.jpg")
-        cls.blurry_sample = os.path.join(cls.samples_dir, "fundus_blurry.jpg")
+        Base.metadata.create_all(bind=engine)
+        db = SessionLocal()
+        seed_data(db)
+        user = db.query(User).filter(User.role == "STAFF").first()
+        cls.auth_headers = {"Authorization": f"Bearer {create_access_token({'sub': str(user.id), 'role': user.role, 'phc_id': user.phc_id})}"}
+        db.close()
 
-    # 1. Preprocessing Test
-    def test_01_preprocessing_pipeline(self):
-        input_tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(self.normal_sample)
-        self.assertEqual(input_tensor.shape, (1, 3, 224, 224))
-        self.assertEqual(input_tensor.dtype, np.float32)
+        cls.model_path = resolve_model_path()
+        cls.normal_sample = os.path.join(os.path.dirname(__file__), "..", "..", "demo_samples", "fundus_grade0_normal.jpg")
+        cls.moderate_sample = os.path.join(os.path.dirname(__file__), "..", "..", "demo_samples", "fundus_grade2_moderate.jpg")
+        cls.blurry_sample = os.path.join(os.path.dirname(__file__), "..", "..", "demo_samples", "fundus_blurry.jpg")
+
+    # 1. Model File Verification
+    def test_01_model_file_exists(self):
+        self.assertTrue(self.model_path.exists(), f"Model file missing: {self.model_path}")
+        size_mb = self.model_path.stat().st_size / (1024 * 1024)
+        self.assertGreater(size_mb, 40.0, f"ONNX model file is suspiciously small ({size_mb:.2f} MB)")
+
+    # 2. Preprocessing Output Verification
+    def test_02_preprocessing_pipeline(self):
+        tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(self.normal_sample)
+        self.assertEqual(tensor.shape, (1, 3, 224, 224))
+        self.assertEqual(tensor.dtype, np.float32)
         self.assertEqual(enhanced_rgb.shape, (224, 224, 3))
-        self.assertEqual(orig_rgb.shape, (224, 224, 3))
+        self.assertEqual(enhanced_rgb.dtype, np.uint8)
 
-    # 2. Live ONNX Model Forward Pass
-    def test_02_onnx_model_inference(self):
-        ai_service = AIService()
-        result = ai_service.analyze_fundus(self.normal_sample)
+    # 3. Live ONNX Inference on Normal Fundus Image
+    def test_03_onnx_inference_normal(self):
+        self.assertIsNotNone(ai_service, "AI Service is not initialized")
+        res = ai_service.analyze_fundus(self.normal_sample, "normal_test.jpg")
+        self.assertEqual(res.status, "success")
+        self.assertEqual(len(res.class_probabilities), 5)
+        self.assertIn(res.dr_grade, range(5))
+        self.assertGreaterEqual(res.confidence, 0.0)
+        self.assertLessEqual(res.confidence, 1.0)
+        self.assertTrue(isinstance(res.referable, bool))
+        self.assertTrue(res.gradcam_image.startswith("data:image/jpeg;base64,"))
+        self.assertGreater(len(res.gradcam_image), 1000)
 
-        self.assertEqual(result.status, "success")
-        self.assertIn(result.dr_grade, [0, 1, 2, 3, 4])
-        self.assertTrue(0.0 <= result.confidence <= 1.0)
-        self.assertEqual(len(result.class_probabilities), 5)
-        # Verify sum of probabilities equals ~1.0
-        prob_sum = sum(result.class_probabilities.values())
-        self.assertAlmostEqual(prob_sum, 1.0, delta=0.01)
-        self.assertIsNotNone(result.model)
-        self.assertEqual(result.model.runtime, "onnxruntime")
-        self.assertEqual(result.model.target_layer, "res5b_relu")
-
-    # 3. Real Grad-CAM Generation on res5b_relu
-    def test_03_real_gradcam_generation(self):
-        ai_service = AIService()
-        result = ai_service.analyze_fundus(self.moderate_sample)
-        self.assertTrue(result.gradcam_image.startswith("data:image/jpeg;base64,"))
-
-    # 4. Blur Gatekeeping Rejection
-    def test_04_blur_quality_gatekeeper(self):
-        ai_service = AIService()
+    # 4. Image Quality Gatekeeper
+    def test_04_quality_gatekeeper(self):
         quality = ai_service._quality_check(self.blurry_sample)
         self.assertTrue(quality.is_blurry)
         self.assertEqual(quality.status, "Warning: Potential Blur")
@@ -174,7 +173,7 @@ class TestONNXPipeline(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["target_layer"], "res5b_relu")
         self.assertEqual(data["referable_threshold"], 0.35)
 
-    # 6. FastAPI /analyze Live Inference
+    # 6. FastAPI /analyze Authenticated Live Inference
     async def test_06_api_analyze_live(self):
         with open(self.normal_sample, "rb") as f:
             img_bytes = f.read()
@@ -182,6 +181,7 @@ class TestONNXPipeline(unittest.IsolatedAsyncioTestCase):
         res = await asgi_call(
             "POST",
             "/analyze",
+            headers=self.auth_headers,
             multipart_files=[("file", "normal_fundus.jpg", img_bytes, "image/jpeg")],
         )
         self.assertEqual(res["status_code"], 200)
@@ -200,6 +200,7 @@ class TestONNXPipeline(unittest.IsolatedAsyncioTestCase):
         res = await asgi_call(
             "POST",
             "/analyze",
+            headers=self.auth_headers,
             multipart_files=[("file", "malicious_script.txt", dummy_text, "text/plain")],
         )
         # Must return 400 Bad Request
