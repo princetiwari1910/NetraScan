@@ -1167,6 +1167,23 @@ function Home() {
             <button
               type="button"
               onClick={handleStartScreening}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                margin: 0,
+                font: "inherit",
+                color: "inherit",
+                fontSize: "inherit",
+                fontWeight: "inherit",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                lineHeight: "inherit",
+                transition: "color 0.2s ease",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#c2410c")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "inherit")}
             >
               Screening
             </button>
@@ -1194,7 +1211,7 @@ function Home() {
 
         </div>
 
-      </footer>git status
+      </footer>
 
     </div>
   );

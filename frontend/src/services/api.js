@@ -111,11 +111,16 @@ export const checkHealth = async () => {
 // AUTHENTICATION & USERS
 // ============================================================
 export const loginUser = async (email, password) => {
-  const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email.trim(), password }),
-  });
+  const response = await fetchWithTimeoutAndRetry(
+    `${API_BASE_URL}/auth/login`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim(), password }),
+    },
+    1,
+    15000
+  );
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));

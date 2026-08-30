@@ -9,6 +9,7 @@ import {
   ScanSearch,
   Activity,
   Stethoscope,
+  LoaderCircle,
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
 import { loginUser } from "../services/api";
@@ -187,9 +188,30 @@ function Login() {
                 </div>
               </div>
 
-              <button type="submit" className="login-submit-button" disabled={loading}>
-                {loading ? "Authenticating..." : "Continue to PHC Portal"}
-                <ArrowRight size={16} />
+              <button
+                type="submit"
+                className="login-submit-button"
+                disabled={loading}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  opacity: loading ? 0.85 : 1,
+                  cursor: loading ? "wait" : "pointer",
+                }}
+              >
+                {loading ? (
+                  <>
+                    <LoaderCircle size={18} className="spin" />
+                    Securing your clinical session…
+                  </>
+                ) : (
+                  <>
+                    Continue to PHC Portal
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </button>
             </form>
 
