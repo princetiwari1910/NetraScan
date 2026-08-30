@@ -15,7 +15,7 @@ The ML pipeline is designed to:
 7. Generate explainable AI visualizations using Grad-CAM
 8. Export the trained model to ONNX for backend integration
 
-> ⚠️ NetraScan is an assistive screening system and is not intended to replace professional medical diagnosis.
+>NetraScan is an assistive screening system and is not intended to replace professional medical diagnosis.
 
 ---
 
