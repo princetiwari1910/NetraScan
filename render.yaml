@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: netrascan
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONPATH=backend uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1
+    envVars:
+      - key: PYTHONPATH
+        value: backend
+      - key: MODEL_PATH
+        value: ml-training/models/NetraScan_ResNet18.onnx
+      - key: ENVIRONMENT
+        value: production
