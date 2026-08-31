@@ -116,6 +116,7 @@ def on_startup():
 # Base Health & Telemetry Endpoint
 # -----------------------------------------------------------------------------
 @app.get("/health", response_model=HealthResponse, tags=["System"])
+@app.get("/api/health", response_model=HealthResponse, tags=["System"], include_in_schema=False)
 async def health_check():
     """Health check endpoint providing service status, mode, model, and target layer info."""
     is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
@@ -139,6 +140,7 @@ async def health_check():
 # Direct Inference & Triage Endpoints (Authenticated)
 # -----------------------------------------------------------------------------
 @app.post("/analyze", response_model=AnalysisResponse, tags=["Inference & Triage"])
+@app.post("/api/analyze", response_model=AnalysisResponse, tags=["Inference & Triage"], include_in_schema=False)
 async def analyze_fundus_image(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
