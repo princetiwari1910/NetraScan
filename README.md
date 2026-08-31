@@ -1,36 +1,32 @@
-# NetraScan — AI Retinal Screening Platform
+# NetraScan — Local-First AI Retinal Screening Platform
 
-> **Live Demo:** https://netra-scan-nu.vercel.app/ **(Working — In Development Phase)**
-
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Vercel-000000.svg?logo=vercel&logoColor=white)](https://netra-scan-nu.vercel.app/)
-[![Python](https://img.shields.io/badge/Python-3.11-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![ONNX Runtime](https://img.shields.io/badge/ONNX_Runtime-1.18%2B-005CED.svg?logo=onnx&logoColor=white)](https://onnxruntime.ai/)
 [![React](https://img.shields.io/badge/React-18.3-61DAFB.svg?logo=react&logoColor=black)](https://react.dev/)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
+[![Vite](https://img.shields.io/badge/Vite-8.2-646CFF.svg?logo=vite&logoColor=white)](https://vitejs.dev/)
+[![SQLite](https://img.shields.io/badge/Database-SQLite_Local-003B57.svg?logo=sqlite&logoColor=white)](https://sqlite.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**NetraScan** is an AI-assisted retinal fundus screening platform designed to analyze digital ophthalmic fundus photographs using a deep-learning inference pipeline and provide explainable screening results. It integrates automated anatomical quality gatekeeping, canonical contrast-limited adaptive histogram equalization (CLAHE), ResNet-18 deep convolutional neural network inference via ONNX Runtime, authentic Grad-CAM explainability on convolutional feature maps, multi-tenant Primary Health Centre (PHC) fleet management, and printable clinical report generation.
+**NetraScan** is a self-contained, local-first AI retinal screening platform designed to analyze digital ophthalmic fundus photographs using a deep-learning inference pipeline and provide explainable clinical screening reports. It integrates automated anatomical quality gatekeeping, contrast-limited adaptive histogram equalization (CLAHE), ResNet-18 deep convolutional neural network inference via ONNX Runtime, authentic Grad-CAM explainability on convolutional feature maps, local Primary Health Centre (PHC) fleet management, and printable clinical report generation.
 
 ---
 
 > [!IMPORTANT]
-> **Clinical Decision-Support Notice & Disclaimer**: NetraScan is an AI-assisted screening and decision-support tool currently in active development. It is designed to assist healthcare workers and primary health centres in triage and prioritization; it does **not** provide definitive medical diagnoses and does **not** replace evaluation by a licensed ophthalmologist or retina specialist.
+> **Clinical Decision-Support Notice & Disclaimer**: NetraScan is an AI-assisted screening and research platform in active development. It is designed to assist healthcare workers in triage and prioritization; it does **not** provide definitive medical diagnoses and does **not** replace evaluation by a licensed ophthalmologist or retina specialist.
 
 ---
 
 ## 📑 Table of Contents
+- [Quick Start: Running Locally](#-quick-start-running-locally)
 - [Project Overview & Workflow](#-project-overview--workflow)
 - [Key Features & Working Capabilities](#-key-features--working-capabilities)
 - [System Architecture](#-system-architecture)
 - [Deep Learning Pipeline & ICDR Classification](#-deep-learning-pipeline--icdr-classification)
 - [Repository Structure](#-repository-structure)
 - [API Reference & Diagnostic Endpoints](#-api-reference--diagnostic-endpoints)
-- [Local Development & Docker Setup](#-local-development--docker-setup)
 - [Environment Variables](#-environment-variables)
-- [MATLAB & Simulink Systems Modeling](#-matlab--simulink-systems-modeling)
 - [Verification & Automated Test Suites](#-verification--automated-test-suites)
-- [Deployment Architecture](#-deployment-architecture)
 
 ---
 
@@ -251,92 +247,81 @@ NetraScan/
 
 ## 🚀 Local Development & Docker Setup
 
+## 🚀 Quick Start: Running Locally
+
 ### Prerequisites
 - **Python**: `3.10` or `3.11`
 - **Node.js**: `18.x` or `20.x`
-- **Docker Desktop**: Version `24.0+` (optional, for containerized execution)
 
 ---
 
-### Option A: Run via Docker (Recommended for ML Replication)
+### Step 1: Start the Backend (Port 8000)
 
-1. **Build and start the containerized backend**:
-   ```bash
-   docker build -t netrascan-backend .
-   docker run -d --name netrascan-backend-live -p 8000:8000 netrascan-backend
-   ```
+```bash
+# 1. Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
 
-2. **Verify container health and model readiness**:
-   ```bash
-   curl http://localhost:8000/health/model
-   ```
+# 2. Install backend dependencies
+pip install -r backend/requirements.txt
 
-3. **Start the frontend development server**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-   Open `http://localhost:5173` in your browser.
+# 3. Start the local FastAPI server
+PYTHONPATH=backend uvicorn main:app --app-dir backend --reload --port 8000
+```
+
+Verify backend health:
+```bash
+curl http://localhost:8000/health/model
+```
 
 ---
 
-### Option B: Run Natively on Host System
+### Step 2: Start the Frontend (Port 5173)
 
-1. **Backend Setup**:
-   ```bash
-   # Navigate to backend directory
-   cd backend
+```bash
+# In a new terminal tab:
+cd frontend
+npm install
+npm run dev
+```
 
-   # Create and activate Python virtual environment
-   python3 -m venv ../venv
-   source ../venv/bin/activate
+Open `http://localhost:5173` in your browser.
 
-   # Install optimized dependencies
-   pip install --upgrade pip
-   pip install -r requirements.txt
+---
 
-   # Start FastAPI development server
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-2. **Frontend Setup**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
+### Default Local Staff Credentials:
+- **Staff / PHC Code**: `PHC-PUNE-001`
+- **Password**: `NetraScan@123`
 
 ---
 
 ## ⚙️ Environment Variables
 
-### Backend Configuration (`backend/.env` or Container ENV):
+### Backend Configuration (`backend/.env`):
 ```env
 # Application Settings
-ENVIRONMENT=production
+ENVIRONMENT=development
 PORT=8000
 API_V1_STR=/api
 
 # Security & JWT
-JWT_SECRET_KEY=netrascan-production-secret-key-replace-in-env
+JWT_SECRET_KEY=local-development-secret-key-netrascan-2026
 ACCESS_TOKEN_EXPIRE_MINUTES=1440
 
-# Database
+# Local Database (Self-contained SQLite)
 DATABASE_URL=sqlite:///./netrascan.db
-# For PostgreSQL in Production: postgresql://user:password@host:5432/netrascan
 
-# ML Inference Configuration
-MODEL_PATH=/app/ml-training/models/NetraScan_ResNet18.onnx
+# Local ResNet-18 ONNX Model
+MODEL_PATH=ml-training/models/NetraScan_ResNet18.onnx
 BLUR_THRESHOLD=35.0
 REFERABLE_THRESHOLD=0.35
 ```
 
-### Frontend Configuration (`frontend/.env` & `frontend/.env.production`):
+### Frontend Configuration (`frontend/.env`):
 ```env
-VITE_AI_API_URL=https://netrascan-4cem.onrender.com
-VITE_API_URL=https://netrascan-4cem.onrender.com
-VITE_API_BASE_URL=https://netrascan-4cem.onrender.com/api
+VITE_AI_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000/api
 ```
 
 ---
