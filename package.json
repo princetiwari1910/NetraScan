@@ -1,0 +1,12 @@
+{
+  "name": "netrascan",
+  "version": "1.0.0",
+  "description": "NetraScan — Local-First AI Retinal Screening Platform",
+  "private": true,
+  "scripts": {
+    "dev:backend": "PYTHONPATH=backend venv/bin/uvicorn main:app --app-dir backend --reload --port 8000",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev": "npm --prefix frontend run dev",
+    "test:local": "PYTHONPATH=backend venv/bin/python test_fundus_validation.py"
+  }
+}
