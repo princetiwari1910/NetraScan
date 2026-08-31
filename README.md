@@ -245,8 +245,6 @@ NetraScan/
 
 ---
 
-## 🚀 Local Development & Docker Setup
-
 ## 🚀 Quick Start: Running Locally
 
 ### Prerequisites
