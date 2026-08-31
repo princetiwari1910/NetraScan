@@ -14,7 +14,7 @@ Pipeline:
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import cv2
 import numpy as np
@@ -182,17 +182,40 @@ class AIService:
     # Live ONNX Inference & Grad-CAM Execution
     # ========================================================
     def analyze_fundus(
-        self, file_path: str, filename: str = ""
+        self,
+        file_path: Union[str, np.ndarray],
+        filename: str = "",
+        precomputed_quality: Optional[QualityMetric] = None,
+        preloaded_bgr: Optional[np.ndarray] = None,
     ) -> AnalysisSuccessResponse:
         start_time = time.time()
-        print(f"\n[PIPELINE TRACE] >>> INFERENCE REQUEST FOR: {filename or file_path}")
+        print(f"\n[PIPELINE TRACE] >>> INFERENCE REQUEST FOR: {filename or str(file_path)}")
 
-        # 1. Quality Assessment
-        quality_metric = self._quality_check(file_path)
+        # 1. Quality Assessment (Reuses precomputed quality metric if provided)
+        if precomputed_quality is not None:
+            quality_metric = precomputed_quality
+        elif preloaded_bgr is not None:
+            height, width = preloaded_bgr.shape[:2]
+            gray = cv2.cvtColor(preloaded_bgr, cv2.COLOR_BGR2GRAY)
+            mask = (gray > 18) & (gray < 240)
+            if np.count_nonzero(mask) > (width * height * 0.10):
+                lap_var = float(cv2.Laplacian(gray, cv2.CV_64F)[mask].var())
+            else:
+                lap_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+            is_blurry = lap_var < BLUR_THRESHOLD
+            quality_metric = QualityMetric(
+                laplacian_variance=round(lap_var, 2),
+                is_blurry=is_blurry,
+                threshold=BLUR_THRESHOLD,
+                status="Warning: Potential Blur" if is_blurry else "Pass",
+            )
+        else:
+            quality_metric = self._quality_check(str(file_path))
         print(f"[PIPELINE TRACE] 1. QUALITY METRIC: Variance={quality_metric.laplacian_variance}, Threshold={quality_metric.threshold}, Status={quality_metric.status}")
 
         # 2. Canonical Preprocessing (MATLAB CLAHE + Resize + NCHW formatting)
-        input_tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(file_path)
+        image_input = preloaded_bgr if preloaded_bgr is not None else file_path
+        input_tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(image_input)
         print(f"[PIPELINE TRACE] 2. PREPROCESSING: Input Tensor Shape={input_tensor.shape}, Dtype={input_tensor.dtype}")
 
         # 3. ONNX Model Forward Pass

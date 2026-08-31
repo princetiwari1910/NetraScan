@@ -223,10 +223,10 @@ async def analyze_fundus_image(
         print("✅ [STEP 5] QUALITY GATE: PASSED (Proceeding to ONNX inference)")
         print("🚀 [STEP 5] AI INFERENCE: EXECUTED")
 
-        # Step 6 to 10: Live ONNX Preprocessing, Inference, and Grad-CAM
+        # Step 6 to 10: Live ONNX Preprocessing, Inference, and Grad-CAM (Reusing precomputed quality metrics)
         try:
             analysis_result = await asyncio.wait_for(
-                asyncio.to_thread(ai_service.analyze_fundus, temp_path, filename),
+                asyncio.to_thread(ai_service.analyze_fundus, temp_path, filename, quality_metric),
                 timeout=ANALYSIS_TIMEOUT_SECONDS,
             )
             print(f"🎯 [STEP 10] FINAL RESPONSE: Grade={analysis_result.dr_grade}, Confidence={analysis_result.confidence*100:.2f}%, Referable={analysis_result.referable}")

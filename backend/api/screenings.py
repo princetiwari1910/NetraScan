@@ -157,8 +157,12 @@ def create_screening(
                 }
             )
 
-        # 4. Live ONNX Model Inference & res5b_relu Grad-CAM
-        ai_res = ai_service.analyze_fundus(temp_path, file.filename or "")
+        # 4. Live ONNX Model Inference & res5b_relu Grad-CAM (Reusing precomputed quality metrics)
+        ai_res = ai_service.analyze_fundus(
+            temp_path,
+            filename=file.filename or "",
+            precomputed_quality=quality_metric
+        )
 
         # 5. Persist Screening Record
         phc = patient.phc

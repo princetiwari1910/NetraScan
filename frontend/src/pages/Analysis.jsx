@@ -93,15 +93,27 @@ function Analysis() {
     },
   ];
 
-  // Dynamic progress subtitle based on elapsed time
+  // Dynamic progress subtitle based on current pipeline stage
   const getProcessingSubtitle = () => {
-    if (elapsedSeconds < 10) {
-      return "NetraScan AI is processing the fundus photograph.";
+    if (activeStageIndex === 1) {
+      return "Validating retinal fundus geometry and optical field of view…";
     }
-    if (elapsedSeconds < 25) {
-      return "Starting AI inference engine… This may take a few seconds.";
+    if (activeStageIndex === 2) {
+      return "Enhancing contrast and preparing standardized 224x224 tensor input…";
     }
-    return "AI analysis is taking a little longer than usual. Please keep this page open.";
+    if (activeStageIndex === 3) {
+      if (elapsedSeconds > 15) {
+        return "AI analysis is taking a little longer than usual. Please keep this page open…";
+      }
+      return "Running ResNet-18 inference and evaluating diabetic retinopathy features…";
+    }
+    if (activeStageIndex === 4) {
+      return "Computing Softmax probabilities and ICDR lesion severity triage…";
+    }
+    if (activeStageIndex >= 5) {
+      return "Compiling explainable findings and generating Grad-CAM attention heatmap…";
+    }
+    return "NetraScan AI is evaluating the retinal fundus photograph.";
   };
 
   const runInferencePipeline = async () => {
@@ -128,6 +140,8 @@ function Analysis() {
       const clientCheck = await validateFundusClientSide(image);
       if (!clientCheck.isValid) {
         clearInterval(timer);
+        setIsProcessing(false);
+        isAnalyzing.current = false;
         setAnalysisResult({
           status: "invalid_fundus",
           valid_fundus: false,
@@ -156,46 +170,25 @@ function Analysis() {
       } else if (patient?.id && typeof patient.id === "string" && /^\d+$/.test(patient.id)) {
         resolvedPatientId = parseInt(patient.id, 10);
       } else {
-        // 2. Look up patient in backend DB
+        // 2. Auto-register or look up patient
         try {
-          const existingList = await fetchPatients().catch(() => []);
-          const match = existingList.find(
-            (p) =>
-              p.id === patient?.id ||
-              p.patient_uid === patient?.patient_uid ||
-              p.patient_uid === patient?.id ||
-              p.full_name?.toLowerCase() === (patient?.name || patient?.full_name || "").toLowerCase()
-          );
-
-          if (match) {
-            resolvedPatientId = match.id;
-            setPatient((prev) => ({
-              ...prev,
-              id: match.id,
-              patient_uid: match.patient_uid,
-              full_name: match.full_name,
-              name: match.full_name,
-            }));
-          } else {
-            // 3. Auto-register new patient in PostgreSQL
-            const newPat = await createPatient({
-              full_name: patient?.full_name || patient?.name || "Screening Patient",
-              age: parseInt(patient?.age || "52", 10) || 52,
-              gender: patient?.gender || "Female",
-              phone: patient?.phone || "+91-9876543210",
-              diabetes_status: patient?.diabetes_status || "Type 2",
-              diabetes_duration: patient?.diabetes_duration || "5 years",
-              medical_notes: patient?.medical_notes || "Screening intake via NetraScan portal.",
-            });
-            resolvedPatientId = newPat.id;
-            setPatient((prev) => ({
-              ...prev,
-              id: newPat.id,
-              patient_uid: newPat.patient_uid,
-              full_name: newPat.full_name,
-              name: newPat.full_name,
-            }));
-          }
+          const newPat = await createPatient({
+            full_name: patient?.full_name || patient?.name || "Screening Patient",
+            age: parseInt(patient?.age || "52", 10) || 52,
+            gender: patient?.gender || "Female",
+            phone: patient?.phone || "+91-9876543210",
+            diabetes_status: patient?.diabetes_status || "Type 2",
+            diabetes_duration: patient?.diabetes_duration || "5 years",
+            medical_notes: patient?.medical_notes || "Screening intake via NetraScan portal.",
+          });
+          resolvedPatientId = newPat.id;
+          setPatient((prev) => ({
+            ...prev,
+            id: newPat.id,
+            patient_uid: newPat.patient_uid,
+            full_name: newPat.full_name,
+            name: newPat.full_name,
+          }));
         } catch (patLookupErr) {
           console.warn("[NetraScan] Patient resolution notice:", patLookupErr.message);
         }
@@ -263,34 +256,40 @@ function Analysis() {
         result = await analyzeRetinalImage(image);
       }
 
+      // ========================================================
+      // STEP 4 & 5: CLINICAL FINDINGS & REPORT GENERATION
+      // ========================================================
+      setActiveStageIndex(4); // Stage 4: Clinical findings
+      await new Promise((r) => setTimeout(r, 150));
+
+      setActiveStageIndex(5); // Stage 5: Report generation
+      await new Promise((r) => setTimeout(r, 200));
+
       clearInterval(timer);
-      setActiveStageIndex(5);
+      setIsProcessing(false);
+      isAnalyzing.current = false;
 
       if (result.status === "success") {
         setAnalysisResult(result);
-        setTimeout(() => {
-          navigate("/results");
-        }, 250);
+        navigate("/results");
       } else if (result.status === "invalid_fundus") {
         setAnalysisResult(result);
-        setTimeout(() => {
-          navigate("/results");
-        }, 100);
+        navigate("/results");
       } else if (result.status === "recapture_required") {
         setAnalysisResult(result);
-        setTimeout(() => {
-          navigate("/results");
-        }, 100);
+        navigate("/results");
       } else {
         setErrorState({
           type: "UNKNOWN_ERROR",
-          title: "Screening Processing Notice",
-          message: result.error || "Inference completed with an unexpected response structure.",
+          title: "AI screening could not be completed",
+          message: result.error || "The inference service did not respond in time. Please retry screening.",
           action: "retry",
         });
       }
     } catch (err) {
       clearInterval(timer);
+      setIsProcessing(false);
+      isAnalyzing.current = false;
       console.error("[NetraScan] Screening Error:", err);
 
       // 1. Explicit Non-Fundus Image Gatekeeper Rejection (HTTP 400 with invalid_fundus)
