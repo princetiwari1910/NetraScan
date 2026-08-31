@@ -12,6 +12,31 @@
 
 ---
 
+Step 1: Start the Backend (Port 8000)
+
+# 1. Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Install backend dependencies
+pip install -r backend/requirements.txt
+
+# 3. Start the local FastAPI server
+PYTHONPATH=backend uvicorn main:app --app-dir backend --reload --port 8000
+Verify backend health:
+
+curl http://localhost:8000/health/model
+Step 2: Start the Frontend (Port 5173)
+
+# In a new terminal tab:
+cd frontend
+npm install
+npm run dev
+Open http://localhost:5173 in your browser.
+
+**Login id : PHC-PUNE-001**
+**Password : NetraScan@123**
+
 > [!IMPORTANT]
 > **Clinical Decision-Support Notice & Disclaimer**: NetraScan is an AI-assisted screening and research platform in active development. It is designed to assist healthcare workers in triage and prioritization; it does **not** provide definitive medical diagnoses and does **not** replace evaluation by a licensed ophthalmologist or retina specialist.
 
