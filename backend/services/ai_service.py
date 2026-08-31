@@ -208,10 +208,11 @@ class AIService:
         precomputed_quality: Optional[QualityMetric] = None,
         preloaded_bgr: Optional[np.ndarray] = None,
     ) -> AnalysisSuccessResponse:
-        start_time = time.time()
-        print(f"\n[PIPELINE TRACE] >>> INFERENCE REQUEST FOR: {filename or str(file_path)}")
+        t_start = time.time()
+        print(f"\n[AI] request received for: {filename or 'fundus_image'}")
 
-        # 1. Quality Assessment (Reuses precomputed quality metric if provided)
+        # 1. Quality Assessment
+        t0 = time.time()
         if precomputed_quality is not None:
             quality_metric = precomputed_quality
         elif preloaded_bgr is not None:
@@ -231,36 +232,36 @@ class AIService:
             )
         else:
             quality_metric = self._quality_check(str(file_path))
-        print(f"[PIPELINE TRACE] 1. QUALITY METRIC: Variance={quality_metric.laplacian_variance}, Threshold={quality_metric.threshold}, Status={quality_metric.status}")
+        t_quality_ms = (time.time() - t0) * 1000
 
         # 2. Canonical Preprocessing (MATLAB CLAHE + Resize + NCHW formatting)
+        t0 = time.time()
         image_input = preloaded_bgr if preloaded_bgr is not None else file_path
         input_tensor, enhanced_rgb, orig_rgb = load_and_preprocess_fundus(image_input)
-        print(f"[PIPELINE TRACE] 2. PREPROCESSING: Input Tensor Shape={input_tensor.shape}, Dtype={input_tensor.dtype}")
+        t_prep_ms = (time.time() - t0) * 1000
+        print(f"[AI] preprocessing: {t_prep_ms:.1f} ms (Tensor: {input_tensor.shape})")
 
         # 3. ONNX Model Forward Pass
+        t0 = time.time()
         raw_outputs = self.session.run(["prob", "res5b_relu"], {self.input_name: input_tensor})
         probabilities = raw_outputs[0][0]  # shape (5,)
         feature_maps = raw_outputs[1]  # shape (1, 512, 7, 7)
-        print(f"[PIPELINE TRACE] 3. ONNX INFERENCE: Output Probabilities Shape={probabilities.shape}, Feature Maps Shape={feature_maps.shape}")
+        t_inf_ms = (time.time() - t0) * 1000
+        print(f"[AI] inference: {t_inf_ms:.1f} ms")
 
+        # 4. Post-processing & Grad-CAM Heatmap
+        t0 = time.time()
         predicted_grade = int(np.argmax(probabilities))
         confidence = float(probabilities[predicted_grade])
 
-        # 4. Format 5-Class Probabilities
         class_probabilities = {
             f"Grade_{g}_{ICDR_STAGE_NAMES[g]}": round(float(probabilities[g]), 4)
             for g in range(5)
         }
-        print(f"[PIPELINE TRACE] 4. 5-CLASS PROBABILITIES: {class_probabilities}")
-        print(f"[PIPELINE TRACE] 5. PREDICTION: Grade {predicted_grade} ({ICDR_STAGE_NAMES[predicted_grade]}), Confidence={confidence*100:.2f}%")
 
-        # 5. Finalized 0.35 Referable DR Decision Logic (Sum of Grades 2, 3, 4 >= 0.35)
         referable_prob = float(np.sum(probabilities[2:]))
         is_referable = bool(referable_prob >= REFERABLE_THRESHOLD)
-        print(f"[PIPELINE TRACE] 6. REFERABLE DECISION: Sum(Grades 2,3,4)={referable_prob:.4f} >= {REFERABLE_THRESHOLD} -> {is_referable}")
 
-        # 6. Authentic Grad-CAM on res5b_relu Layer (safely isolated)
         try:
             gradcam_data_uri = self.gradcam_engine.generate_overlay_data_uri(
                 feature_maps=feature_maps,
@@ -268,19 +269,21 @@ class AIService:
                 target_class=predicted_grade,
                 alpha=0.45,
             )
-            print(f"[PIPELINE TRACE] 7. GRAD-CAM: Generated from res5b_relu (Data URI Length: {len(gradcam_data_uri)} chars)")
         except Exception as cam_err:
-            print(f"⚠️ [PIPELINE TRACE] Warning: Grad-CAM generation failed: {cam_err}")
+            print(f"⚠️ [AI] Grad-CAM generation notice: {cam_err}")
             gradcam_data_uri = ""
 
-        # 7. Clinical Evidence Association
         evidence = ICDR_EVIDENCE_MAP.get(
             predicted_grade,
             ["Standard fundus evaluation completed by NetraScan AI diagnostic pipeline."]
         )
+        t_post_ms = (time.time() - t0) * 1000
+        print(f"[AI] postprocessing: {t_post_ms:.1f} ms")
 
-        inference_time_ms = int((time.time() - start_time) * 1000)
-        print(f"[PIPELINE TRACE] 8. COMPLETE: Total Analysis Latency={inference_time_ms} ms\n")
+        t_total_ms = (time.time() - t_start) * 1000
+        print(f"[AI] total: {t_total_ms:.1f} ms (Grade: {predicted_grade}, Conf: {confidence*100:.2f}%)\n")
+
+        inference_time_ms = int(t_total_ms)
 
         model_meta = ModelMetadata(
             name=MODEL_NAME,
