@@ -107,6 +107,27 @@ export const checkHealth = async () => {
   }
 };
 
+export const checkModelHealth = async () => {
+  try {
+    const response = await fetchWithTimeoutAndRetry(
+      `${API_HOST}/health/model`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      },
+      1,
+      10000
+    );
+    if (!response.ok) {
+      return { status: "unavailable", model_loaded: false };
+    }
+    return await response.json();
+  } catch (error) {
+    console.warn("NetraScan model health check warning:", error.message);
+    return { status: "unavailable", model_loaded: false };
+  }
+};
+
 // ============================================================
 // AUTHENTICATION & USERS
 // ============================================================

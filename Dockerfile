@@ -50,5 +50,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=20s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Start FastAPI uvicorn production server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start FastAPI uvicorn production server (Single worker for ML memory safety, dynamic PORT)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1 --limit-concurrency 10"]

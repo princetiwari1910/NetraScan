@@ -12,6 +12,7 @@ Pipeline:
 """
 
 import os
+import gc
 import time
 from pathlib import Path
 from typing import Dict, List, Optional, Union
@@ -145,9 +146,13 @@ class AIService:
         )
         onnx_model.graph.output.append(intermediate_out)
 
-        # 3. Create persistent ONNX Runtime InferenceSession
+        # 3. Create persistent ONNX Runtime InferenceSession with controlled memory footprint
         sess_options = ort.SessionOptions()
         sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        sess_options.intra_op_num_threads = 2
+        sess_options.inter_op_num_threads = 1
+        sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+        sess_options.enable_cpu_mem_arena = True
         self.session = ort.InferenceSession(onnx_model.SerializeToString(), sess_options)
 
         # Verify session input & output signatures
@@ -155,6 +160,7 @@ class AIService:
         self.output_names = [o.name for o in self.session.get_outputs()]
 
         self.device = "cpu"
+        self.inference_provider = "CPUExecutionProvider"
         self.model_loaded = True
         self.num_classes = 5
         self.target_layer_name = "res5b_relu"
@@ -279,6 +285,10 @@ class AIService:
         )
         t_post_ms = (time.time() - t0) * 1000
         print(f"[AI] postprocessing: {t_post_ms:.1f} ms")
+
+        # Explicit memory release
+        del input_tensor, raw_outputs, feature_maps, enhanced_rgb, orig_rgb
+        gc.collect()
 
         t_total_ms = (time.time() - t_start) * 1000
         print(f"[AI] total: {t_total_ms:.1f} ms (Grade: {predicted_grade}, Conf: {confidence*100:.2f}%)\n")

@@ -137,6 +137,23 @@ async def health_check():
     )
 
 
+@app.get("/health/model", tags=["System"])
+@app.get("/api/health/model", tags=["System"], include_in_schema=False)
+async def model_health_check():
+    """Detailed model health endpoint verifying ONNX runtime session and memory readiness."""
+    is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
+    return {
+        "status": "ready" if is_loaded else "unavailable",
+        "model": "NetraScan ResNet-18",
+        "runtime": "onnxruntime",
+        "inference_provider": "CPUExecutionProvider",
+        "target_layer": "res5b_relu",
+        "referable_threshold": 0.35,
+        "input_size": "224x224x3",
+        "model_loaded": is_loaded,
+    }
+
+
 @app.get("/ready", tags=["System"])
 @app.get("/api/ready", tags=["System"], include_in_schema=False)
 async def readiness_check():
