@@ -359,15 +359,20 @@ function Analysis() {
       }
 
       // 6. Generic Server / Network / Timeout Error
-      const isTimeout = err.name === "AbortError" || err.message?.toLowerCase().includes("timeout");
+      const isTimeout =
+        err.name === "AbortError" ||
+        err.errorCode === "TIMEOUT" ||
+        err.message?.toLowerCase().includes("timeout") ||
+        err.message?.toLowerCase().includes("timed out");
+
       setErrorState({
         type: isTimeout ? "TIMEOUT" : "SERVER_ERROR",
-        title: isTimeout ? "AI Inference Service Timed Out" : "Unable to connect to the AI screening service",
+        title: isTimeout ? "AI screening could not be completed" : "Unable to connect to the AI screening service",
         message: isTimeout
-          ? "AI analysis took longer than expected to evaluate the image. Please retry."
-          : (err.message && !err.message.toLowerCase().includes("object"))
+          ? "The inference service did not respond in time. Please retry screening."
+          : err.message && !err.message.toLowerCase().includes("object")
           ? err.message
-          : "The NetraScan AI backend on Render did not respond. The service may be waking up from sleep. Click 'Retry Screening' to resubmit.",
+          : "The NetraScan AI backend did not respond. Click 'Retry Screening' to resubmit.",
         action: "retry",
       });
     } finally {

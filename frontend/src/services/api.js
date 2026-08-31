@@ -305,11 +305,10 @@ export const fetchPatientScreenings = async (patientId) => {
 // ============================================================
 export const createScreening = async (patientId, examinedEye, file) => {
   let attempt = 0;
-  const maxRetries = 2;
-  const timeoutMs = 60000;
+  const maxRetries = 1;
+  const timeoutMs = 25000; // 25s timeout for live screening request
 
   while (attempt <= maxRetries) {
-    // Fresh FormData instance created on each attempt to avoid consumed stream issues in Safari
     const formData = new FormData();
     formData.append("patient_id", String(patientId));
     formData.append("examined_eye", examinedEye || "OD - Right Eye");
@@ -335,9 +334,9 @@ export const createScreening = async (patientId, examinedEye, file) => {
       clearTimeout(timer);
 
       if ([502, 503, 504].includes(response.status) && attempt < maxRetries) {
-        console.warn(`[NetraScan API] Server responded with ${response.status} (spin-up). Retrying in 2s...`);
+        console.warn(`[NetraScan API] Server responded with ${response.status} (spin-up). Retrying in 1.5s...`);
         attempt++;
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 1500));
         continue;
       }
 
@@ -380,10 +379,15 @@ export const createScreening = async (patientId, examinedEye, file) => {
           err.message?.toLowerCase().includes("failed to fetch") ||
           err.message?.toLowerCase().includes("load failed"))
       ) {
-        console.warn(`[NetraScan API] Connection glitch (${err.message}). Retrying attempt ${attempt + 2}...`);
+        console.warn(`[NetraScan API] Connection notice (${err.message}). Retrying attempt ${attempt + 2}...`);
         attempt++;
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 1000));
         continue;
+      }
+      if (err.name === "AbortError") {
+        const timeoutErr = new Error("AI screening request timed out. The backend did not respond in time.");
+        timeoutErr.errorCode = "TIMEOUT";
+        throw timeoutErr;
       }
       throw err;
     }

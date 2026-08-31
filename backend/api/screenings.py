@@ -1,9 +1,13 @@
 import os
+import time
+import logging
 import shutil
 import tempfile
 import uuid
 from datetime import datetime
 from typing import List, Optional
+
+logger = logging.getLogger("netrascan.screenings")
 
 from fastapi import (
     APIRouter,
@@ -122,6 +126,8 @@ def create_screening(
         )
 
     # 2. Validate File & Format
+    req_start = time.time()
+    logger.info(f"[SCREENING INGEST] Request received: patient_id={patient_id}, eye='{examined_eye}', filename='{file.filename}'")
     validate_file(file)
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.filename or ".jpg")[1])
     temp_path = temp_file.name
@@ -131,8 +137,13 @@ def create_screening(
             shutil.copyfileobj(file.file, buffer)
 
         # 3. Strict Fundus Anatomical & Quality Gatekeeping
+        val_start = time.time()
         is_pass, gate_status, quality_metric, reason, recommendation = assess_basic_integrity(temp_path)
+        val_duration_ms = (time.time() - val_start) * 1000
+        logger.info(f"[SCREENING VALIDATION] Gatekeeper completed in {val_duration_ms:.1f}ms: status={gate_status}")
+
         if gate_status == "invalid_fundus":
+            logger.warning(f"[SCREENING VALIDATION] Rejected non-fundus image: {reason}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
@@ -146,6 +157,7 @@ def create_screening(
             )
 
         if gate_status == "recapture_required":
+            logger.warning(f"[SCREENING VALIDATION] Recapture required: {reason}")
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
@@ -158,13 +170,18 @@ def create_screening(
             )
 
         # 4. Live ONNX Model Inference & res5b_relu Grad-CAM (Reusing precomputed quality metrics)
+        inf_start = time.time()
+        logger.info("[SCREENING INFERENCE] Dispatching to ONNX inference session (model warm in memory)...")
         ai_res = ai_service.analyze_fundus(
             temp_path,
             filename=file.filename or "",
             precomputed_quality=quality_metric
         )
+        inf_duration_ms = (time.time() - inf_start) * 1000
+        logger.info(f"[SCREENING INFERENCE] Inference completed in {inf_duration_ms:.1f}ms: Grade={ai_res.dr_grade}, Conf={ai_res.confidence*100:.2f}%")
 
         # 5. Persist Screening Record
+        db_start = time.time()
         phc = patient.phc
         screening_uid = generate_screening_uid(phc.code if phc else "GEN", db)
 
@@ -182,7 +199,7 @@ def create_screening(
             referable=ai_res.referable,
             model_name=ai_res.model.name if ai_res.model else "NetraScan ResNet-18",
             model_version=ai_res.model.version if ai_res.model else "1.0",
-            inference_time_ms=ai_res.model.inference_time_ms if ai_res.model else 25,
+            inference_time_ms=ai_res.model.inference_time_ms if ai_res.model else int(inf_duration_ms),
             gradcam_reference=ai_res.gradcam_image,
             ai_evidence=ai_res.evidence,
             class_probabilities=ai_res.class_probabilities,
@@ -193,6 +210,8 @@ def create_screening(
         db.add(screening)
         db.commit()
         db.refresh(screening)
+        total_req_ms = (time.time() - req_start) * 1000
+        logger.info(f"[SCREENING COMPLETE] Screening {screening_uid} persisted and returned in {total_req_ms:.1f}ms total.")
 
         return map_screening_to_response(screening)
 
