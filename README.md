@@ -17,7 +17,41 @@
 
 ---
 
+# ⚙️ Environment Variables
+
+## Backend Configuration (`backend/.env`)
+
+```env
+# Application Settings
+ENVIRONMENT=development
+PORT=8000
+API_V1_STR=/api
+
+# Security & JWT
+JWT_SECRET_KEY=local-development-secret-key-netrascan-2026
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# Local Database (Self-contained SQLite)
+DATABASE_URL=sqlite:///./netrascan.db
+
+# Local ResNet-18 ONNX Model
+MODEL_PATH=ml-training/models/NetraScan_ResNet18.onnx
+BLUR_THRESHOLD=35.0
+REFERABLE_THRESHOLD=0.35
+```
+
+## Frontend Configuration (`frontend/.env`)
+
+```env
+VITE_AI_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:8000
+VITE_API_BASE_URL=http://localhost:8000/api
+```
+
+---
+
 ## 📑 Table of Contents
+- [⚙️ Environment Variables](#️-environment-variables)
 - [Quick Start: Running Locally](#-quick-start-running-locally)
 - [Project Overview & Workflow](#-project-overview--workflow)
 - [Key Features & Working Capabilities](#-key-features--working-capabilities)
@@ -25,7 +59,6 @@
 - [Deep Learning Pipeline & ICDR Classification](#-deep-learning-pipeline--icdr-classification)
 - [Repository Structure](#-repository-structure)
 - [API Reference & Diagnostic Endpoints](#-api-reference--diagnostic-endpoints)
-- [Environment Variables](#-environment-variables)
 - [Verification & Automated Test Suites](#-verification--automated-test-suites)
 
 ---
@@ -297,37 +330,6 @@ Open `http://localhost:5173` in your browser.
 | **Super Administrator** | `admin@netrascan.org` | `NetraScan@Admin2026` | Full platform management, multi-PHC fleet analytics |
 | **Ophthalmologist / Doctor** | `doctor.pune@netrascan.org` | `Doctor@Pune123` | Clinical review, report verification, referral sign-off |
 | **PHC Field Staff** | `staff.pune@netrascan.org` | `Staff@Pune123` | Patient intake & screening execution |
-
----
-
-## ⚙️ Environment Variables
-
-### Backend Configuration (`backend/.env`):
-```env
-# Application Settings
-ENVIRONMENT=development
-PORT=8000
-API_V1_STR=/api
-
-# Security & JWT
-JWT_SECRET_KEY=local-development-secret-key-netrascan-2026
-ACCESS_TOKEN_EXPIRE_MINUTES=1440
-
-# Local Database (Self-contained SQLite)
-DATABASE_URL=sqlite:///./netrascan.db
-
-# Local ResNet-18 ONNX Model
-MODEL_PATH=ml-training/models/NetraScan_ResNet18.onnx
-BLUR_THRESHOLD=35.0
-REFERABLE_THRESHOLD=0.35
-```
-
-### Frontend Configuration (`frontend/.env`):
-```env
-VITE_AI_API_URL=http://localhost:8000
-VITE_API_URL=http://localhost:8000
-VITE_API_BASE_URL=http://localhost:8000/api
-```
 
 ---
 
