@@ -1,0 +1,24 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: netrascan-backend:latest
+    container_name: netrascan-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MODEL_PATH=/app/ml-training/models/NetraScan_ResNet18.onnx
+      - MODEL_NAME=NetraScan ResNet-18
+      - MODEL_VERSION=1.0
+      - REFERABLE_THRESHOLD=0.35
+      - BLUR_THRESHOLD=35.0
+      - JWT_SECRET=netrascan_clinical_jwt_secret_key_2026_secure
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
