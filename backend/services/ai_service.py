@@ -153,7 +153,15 @@ class AIService:
         sess_options.inter_op_num_threads = 1
         sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
         sess_options.enable_cpu_mem_arena = True
-        self.session = ort.InferenceSession(onnx_model.SerializeToString(), sess_options)
+        
+        model_bytes = onnx_model.SerializeToString()
+        del onnx_model
+        del initializers
+        gc.collect()
+
+        self.session = ort.InferenceSession(model_bytes, sess_options)
+        del model_bytes
+        gc.collect()
 
         # Verify session input & output signatures
         self.input_name = self.session.get_inputs()[0].name
@@ -169,6 +177,8 @@ class AIService:
         try:
             dummy_input = np.zeros((1, 3, 224, 224), dtype=np.float32)
             self.session.run(["prob", "res5b_relu"], {self.input_name: dummy_input})
+            del dummy_input
+            gc.collect()
             print("🔥 Pre-warmed ONNX execution graph for immediate low-latency inference.")
         except Exception as warm_err:
             print(f"⚠️ Pre-warm notice: {warm_err}")
