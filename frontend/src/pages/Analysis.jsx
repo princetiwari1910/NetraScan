@@ -6,6 +6,7 @@ import {
   createScreening,
   createPatient,
   fetchPatients,
+  checkModelHealth,
 } from "../services/api";
 import { validateFundusClientSide } from "../services/imageValidation";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
@@ -198,6 +199,21 @@ function Analysis() {
       // STEP 3: DISPATCH AI RETINAL SCREENING (POST /api/screenings)
       // ========================================================
       setActiveStageIndex(3);
+
+      // Pre-flight Model Readiness Probe (Cold start safety)
+      try {
+        const modelCheck = await checkModelHealth();
+        if (modelCheck && modelCheck.status !== "ready" && !modelCheck.model_loaded) {
+          console.log("[NetraScan] Model is initializing, waiting for readiness...");
+          for (let i = 0; i < 3; i++) {
+            await new Promise((r) => setTimeout(r, 1000));
+            const recheck = await checkModelHealth();
+            if (recheck && (recheck.status === "ready" || recheck.model_loaded)) break;
+          }
+        }
+      } catch (probeErr) {
+        console.warn("[NetraScan] Pre-flight readiness probe notice:", probeErr.message);
+      }
 
       console.log("[NetraScan] Dispatching AI screening request:", {
         patient_id: resolvedPatientId,

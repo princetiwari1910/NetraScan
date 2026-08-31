@@ -168,6 +168,26 @@ async def readiness_check():
     }
 
 
+@app.get("/model-status", tags=["System"])
+@app.get("/api/model-status", tags=["System"], include_in_schema=False)
+async def model_status():
+    """Detailed model status endpoint returning architecture metadata and input/output shapes."""
+    is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
+    return {
+        "model_name": "NetraScan ResNet-18",
+        "loaded": is_loaded,
+        "runtime": "onnxruntime",
+        "inference_provider": "CPUExecutionProvider",
+        "input_shape": [1, 3, 224, 224],
+        "input_name": "data",
+        "output_shape": [[1, 5], [1, 512, 7, 7]],
+        "output_names": ["prob", "res5b_relu"],
+        "num_classes": 5,
+        "target_layer": "res5b_relu",
+        "referable_threshold": 0.35,
+    }
+
+
 # -----------------------------------------------------------------------------
 # Direct Inference & Triage Endpoints (Authenticated)
 # -----------------------------------------------------------------------------
