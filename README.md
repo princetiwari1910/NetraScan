@@ -287,9 +287,16 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
-### Default Local Staff Credentials:
-- **Staff / PHC Code**: `PHC-PUNE-001`
-- **Password**: `NetraScan@123`
+---
+
+### 🔑 Default Login Credentials & Access Roles:
+
+| Role | Username / ID / Email | Password | Access Level |
+| :--- | :--- | :--- | :--- |
+| **Primary Health Staff (Default)** | `PHC-PUNE-001` | `NetraScan@123` | Patient intake, fundus screening, report generation |
+| **Super Administrator** | `admin@netrascan.org` | `NetraScan@Admin2026` | Full platform management, multi-PHC fleet analytics |
+| **Ophthalmologist / Doctor** | `doctor.pune@netrascan.org` | `Doctor@Pune123` | Clinical review, report verification, referral sign-off |
+| **PHC Field Staff** | `staff.pune@netrascan.org` | `Staff@Pune123` | Patient intake & screening execution |
 
 ---
 
