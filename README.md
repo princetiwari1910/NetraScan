@@ -26,6 +26,9 @@ PYTHONPATH=backend uvicorn main:app --app-dir backend --reload --port 8000
 Verify backend health:
 
 curl http://localhost:8000/health/model
+
+
+
 Step 2: Start the Frontend (Port 5173)
 
 # In a new terminal tab:
