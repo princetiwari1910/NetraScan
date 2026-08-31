@@ -8,7 +8,7 @@ const RAW_URL = (
   import.meta.env.VITE_API_URL ||
   import.meta.env.VITE_API_BASE_URL ||
   import.meta.env.NEXT_PUBLIC_API_URL ||
-  "https://netrascan-4cem.onrender.com"
+  "http://localhost:8000"
 ).replace(/\/$/, "");
 
 // Normalize API Host and API V1 prefix
