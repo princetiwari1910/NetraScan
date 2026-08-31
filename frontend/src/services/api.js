@@ -326,8 +326,8 @@ export const fetchPatientScreenings = async (patientId) => {
 // ============================================================
 export const createScreening = async (patientId, examinedEye, file) => {
   let attempt = 0;
-  const maxRetries = 1;
-  const timeoutMs = 25000; // 25s timeout for live screening request
+  const maxRetries = 2;
+  const timeoutMs = 45000; // 45s timeout for live screening request (handles cold starts)
 
   while (attempt <= maxRetries) {
     const formData = new FormData();
