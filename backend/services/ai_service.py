@@ -111,9 +111,20 @@ class AIService:
     Live Production ONNX AI Service for NetraScan.
     Loads the finalized MATLAB-trained NetraScan ResNet-18 ONNX model once at startup
     and executes authentic inference and res5b_relu Grad-CAM.
+    Implements a strict Singleton pattern to guarantee the model is never reloaded per request.
     """
+    _instance: Optional["AIService"] = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(AIService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
 
     def __init__(self):
+        if getattr(self, "_initialized", False):
+            return
+
         self.model_path = resolve_model_path()
         print(f"📦 Loading finalized NetraScan ResNet-18 ONNX model from: {self.model_path}")
 
@@ -148,6 +159,15 @@ class AIService:
         self.num_classes = 5
         self.target_layer_name = "res5b_relu"
 
+        # 4. Pre-warm ONNX execution kernels with a dummy tensor
+        try:
+            dummy_input = np.zeros((1, 3, 224, 224), dtype=np.float32)
+            self.session.run(["prob", "res5b_relu"], {self.input_name: dummy_input})
+            print("🔥 Pre-warmed ONNX execution graph for immediate low-latency inference.")
+        except Exception as warm_err:
+            print(f"⚠️ Pre-warm notice: {warm_err}")
+
+        self._initialized = True
         print(f"🚀 NetraScan ONNX AI Service successfully initialized on {self.device}.")
         print(f"   Input: '{self.input_name}', Outputs: {self.output_names}")
 
