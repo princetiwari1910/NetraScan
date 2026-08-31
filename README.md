@@ -9,7 +9,47 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **NetraScan** is a self-contained, local-first AI retinal screening platform designed to analyze digital ophthalmic fundus photographs using a deep-learning inference pipeline and provide explainable clinical screening reports. It integrates automated anatomical quality gatekeeping, contrast-limited adaptive histogram equalization (CLAHE), ResNet-18 deep convolutional neural network inference via ONNX Runtime, authentic Grad-CAM explainability on convolutional feature maps, local Primary Health Centre (PHC) fleet management, and printable clinical report generation.
+## 🚀 Quick Start: Running Locally
 
+### Prerequisites
+- **Python**: `3.10` or `3.11`
+- **Node.js**: `18.x` or `20.x`
+
+---
+
+### Step 1: Start the Backend (Port 8000)
+
+```bash
+# 1. Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# 2. Install backend dependencies
+pip install -r backend/requirements.txt
+
+# 3. Start the local FastAPI server
+PYTHONPATH=backend uvicorn main:app --app-dir backend --reload --port 8000
+```
+
+Verify backend health:
+```bash
+curl http://localhost:8000/health/model
+```
+
+---
+
+### Step 2: Start the Frontend (Port 5173)
+
+```bash
+# In a new terminal tab:
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173` in your browser.
+
+---
 ---
 
 Step 1: Start the Backend (Port 8000)
@@ -314,41 +354,7 @@ NetraScan/
 
 ---
 
-### Step 1: Start the Backend (Port 8000)
 
-```bash
-# 1. Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# 2. Install backend dependencies
-pip install -r backend/requirements.txt
-
-# 3. Start the local FastAPI server
-PYTHONPATH=backend uvicorn main:app --app-dir backend --reload --port 8000
-```
-
-Verify backend health:
-```bash
-curl http://localhost:8000/health/model
-```
-
----
-
-### Step 2: Start the Frontend (Port 5173)
-
-```bash
-# In a new terminal tab:
-cd frontend
-npm install
-npm run dev
-```
-
-Open `http://localhost:5173` in your browser.
-
----
-
----
 
 ### 🔑 Default Login Credentials & Access Roles:
 
