@@ -127,6 +127,7 @@ async def health_check():
         mode="mock" if USE_MOCK else "live",
         device=str(getattr(ai_service, "device", "cpu")),
         runtime="mock" if USE_MOCK else "onnxruntime",
+        inference_provider="CPUExecutionProvider",
         model="NetraScan ResNet-18",
         model_loaded=is_loaded,
         num_classes=5,
@@ -134,6 +135,20 @@ async def health_check():
         target_layer="res5b_relu",
         referable_threshold=0.35,
     )
+
+
+@app.get("/ready", tags=["System"])
+@app.get("/api/ready", tags=["System"], include_in_schema=False)
+async def readiness_check():
+    """Readiness probe returning whether the AI model is warm and ready for screening requests."""
+    is_ready = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
+    return {
+        "status": "ready" if is_ready else "initializing",
+        "model_loaded": is_ready,
+        "model": "ResNet-18 ONNX",
+        "inference_provider": "CPUExecutionProvider",
+        "version": "1.0.0",
+    }
 
 
 # -----------------------------------------------------------------------------

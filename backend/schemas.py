@@ -20,6 +20,7 @@ class HealthResponse(BaseModel):
     mode: str = Field(..., description="'live' or 'mock'")
     device: str = "cpu"
     runtime: str = "onnxruntime"
+    inference_provider: str = "CPUExecutionProvider"
     model: str = "NetraScan ResNet-18"
     model_loaded: bool = True
     num_classes: int = 5
