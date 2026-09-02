@@ -326,3 +326,20 @@ class AIService:
             quality_metric=quality_metric,
             model=model_meta,
         )
+
+
+_global_ai_service: Optional[AIService] = None
+
+
+def get_ai_service() -> AIService:
+    """Returns the singleton AIService instance, initializing it lazily upon first inference call."""
+    global _global_ai_service
+    if _global_ai_service is None:
+        _global_ai_service = AIService()
+    return _global_ai_service
+
+
+def is_model_loaded() -> bool:
+    """Returns True if the ONNX model has been initialized into memory."""
+    global _global_ai_service
+    return bool(_global_ai_service is not None and getattr(_global_ai_service, "model_loaded", False))

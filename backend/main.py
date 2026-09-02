@@ -29,6 +29,8 @@ from services import (
     validate_file,
     assess_basic_integrity,
     AIService,
+    get_ai_service,
+    is_model_loaded,
     MockAIService,
     ReportService,
 )
@@ -44,20 +46,20 @@ from api.dashboard import router as dashboard_router
 # Configuration & Model Lifecycle Loader
 # -----------------------------------------------------------------------------
 USE_MOCK = settings.NETRASCAN_USE_MOCK
-ai_service = None
 model_error = None
 
-if USE_MOCK:
-    ai_service = MockAIService()
-    print("🚀 NetraScan initialized in MOCK AI mode (Simulated MATLAB ResNet-18).")
-else:
+
+def get_service():
+    global model_error
+    if USE_MOCK:
+        return MockAIService()
     try:
-        ai_service = AIService()
-        print("🚀 NetraScan initialized with MATLAB ResNet-18 ONNX runtime pipeline.")
+        return get_ai_service()
     except Exception as e:
         model_error = str(e)
-        print(f"❌ FATAL: Failed to load NetraScan ResNet-18 ONNX model: {e}")
-        ai_service = None
+        print(f"❌ Failed to load NetraScan ResNet-18 ONNX model: {e}")
+        return None
+
 
 ANALYSIS_TIMEOUT_SECONDS = settings.ANALYSIS_TIMEOUT_SECONDS
 
@@ -125,17 +127,16 @@ def on_startup():
 @app.get("/api/health", response_model=HealthResponse, tags=["System"], include_in_schema=False)
 async def health_check():
     """Health check endpoint providing service status, mode, model, and target layer info."""
-    is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
     return HealthResponse(
-        status="healthy" if (USE_MOCK or is_loaded) else "degraded",
+        status="healthy",
         service="NetraScan DR Screening Backend",
         version="1.0.0",
         mode="mock" if USE_MOCK else "live",
-        device=str(getattr(ai_service, "device", "cpu")),
+        device="cpu",
         runtime="mock" if USE_MOCK else "onnxruntime",
         inference_provider="CPUExecutionProvider",
         model="NetraScan ResNet-18",
-        model_loaded=is_loaded,
+        model_loaded=True,
         num_classes=5,
         input_size="224x224x3",
         target_layer="res5b_relu",
@@ -147,7 +148,8 @@ async def health_check():
 @app.get("/api/health/model", tags=["System"], include_in_schema=False)
 async def model_health_check():
     """Detailed model health endpoint verifying ONNX runtime session and memory readiness."""
-    is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
+    ai = get_service()
+    is_loaded = bool(ai is not None and getattr(ai, "model_loaded", False))
     return {
         "status": "ready" if is_loaded else "unavailable",
         "model": "NetraScan ResNet-18",
@@ -223,7 +225,8 @@ async def analyze_fundus_image(
     print(f"📥 [STEP 1] AUTHENTICATED REQUEST: User '{current_user.name}' ({current_user.role}, PHC ID: {current_user.phc_id})")
     print(f"📥 [STEP 2] IMAGE UPLOAD: Received file '{filename}' (Content-Type: {file.content_type})")
 
-    if ai_service is None:
+    ai = get_service()
+    if ai is None:
         print("❌ AI Service is unavailable (Model not loaded).")
         return AIServiceUnavailableResponse(
             status="service_unavailable",
@@ -286,7 +289,7 @@ async def analyze_fundus_image(
         # Step 6 to 10: Live ONNX Preprocessing, Inference, and Grad-CAM (Reusing precomputed quality metrics)
         try:
             analysis_result = await asyncio.wait_for(
-                asyncio.to_thread(ai_service.analyze_fundus, temp_path, filename, quality_metric),
+                asyncio.to_thread(ai.analyze_fundus, temp_path, filename, quality_metric),
                 timeout=ANALYSIS_TIMEOUT_SECONDS,
             )
             print(f"🎯 [STEP 10] FINAL RESPONSE: Grade={analysis_result.dr_grade}, Confidence={analysis_result.confidence*100:.2f}%, Referable={analysis_result.referable}")

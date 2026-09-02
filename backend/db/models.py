@@ -61,7 +61,7 @@ class Patient(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_uid = Column(String(100), unique=True, index=True, nullable=False)
     phc_id = Column(Integer, ForeignKey("phcs.id", ondelete="CASCADE"), nullable=False, index=True)
-    full_name = Column(String(255), nullable=False)
+    full_name = Column(String(255), nullable=False, index=True)
     date_of_birth = Column(String(50), nullable=True)
     age = Column(Integer, nullable=False)
     gender = Column(String(20), nullable=False)  # Male, Female, Other
@@ -109,16 +109,16 @@ class Screening(Base):
     class_probabilities = Column(JSON, nullable=True)
 
     # Human-in-the-Loop Doctor Verification
-    doctor_verified = Column(Boolean, default=False, nullable=False)
-    doctor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    doctor_verified = Column(Boolean, default=False, nullable=False, index=True)
+    doctor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     doctor_name = Column(String(255), nullable=True)
     doctor_decision = Column(Integer, nullable=True)  # Final verified grade (0 to 4)
     doctor_notes = Column(Text, nullable=True)
 
     # Timestamps
-    screened_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    screened_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     verified_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Relationships

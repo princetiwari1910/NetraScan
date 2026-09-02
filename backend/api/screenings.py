@@ -21,7 +21,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import HTMLResponse, Response
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from core.security import get_current_user, require_roles
 from db.models import Patient, PHC, Screening, User
@@ -36,20 +36,13 @@ from schemas import (
 )
 from services import (
     AIService,
-    MockAIService,
+    get_ai_service,
     ReportService,
     assess_basic_integrity,
     validate_file,
 )
 
 router = APIRouter(prefix="/screenings", tags=["Screenings & AI Triage"])
-
-# Global AI Service instance
-USE_MOCK = os.getenv("NETRASCAN_USE_MOCK", "false").lower() in ("true", "1", "yes")
-try:
-    ai_service = AIService() if not USE_MOCK else MockAIService()
-except Exception:
-    ai_service = MockAIService()
 
 
 def generate_screening_uid(phc_code: str, db: Session) -> str:
@@ -59,9 +52,14 @@ def generate_screening_uid(phc_code: str, db: Session) -> str:
     return f"SCR-{code_part}-{count:06d}"
 
 
-def map_screening_to_response(s: Screening) -> ScreeningResponse:
+def map_screening_to_response(s: Screening, include_images: bool = True) -> ScreeningResponse:
     """Maps SQLAlchemy Screening record to Pydantic ScreeningResponse model."""
     patient = s.patient
+    phc = s.phc
+    fundus_img = s.image_path if include_images else None
+    # For listing without heavy images, keep gradcam if small or None
+    gradcam_img = s.gradcam_reference if include_images else None
+
     return ScreeningResponse(
         id=s.id,
         screening_uid=s.screening_uid,
@@ -71,7 +69,7 @@ def map_screening_to_response(s: Screening) -> ScreeningResponse:
         patient_age=patient.age if patient else None,
         patient_gender=patient.gender if patient else None,
         phc_id=s.phc_id,
-        phc_name=s.phc.name if s.phc else None,
+        phc_name=phc.name if phc else None,
         performed_by=s.performed_by,
         examined_eye=s.examined_eye,
         quality_status=s.quality_status,
@@ -83,9 +81,9 @@ def map_screening_to_response(s: Screening) -> ScreeningResponse:
         model_name=s.model_name,
         model_version=s.model_version,
         inference_time_ms=s.inference_time_ms,
-        image_path=s.image_path,
-        fundus_image=s.image_path,
-        gradcam_reference=s.gradcam_reference,
+        image_path=fundus_img,
+        fundus_image=fundus_img,
+        gradcam_reference=gradcam_img,
         ai_evidence=s.ai_evidence,
         class_probabilities=s.class_probabilities,
         doctor_verified=s.doctor_verified,
@@ -175,7 +173,8 @@ def create_screening(
         # 4. Live ONNX Model Inference & res5b_relu Grad-CAM (Reusing precomputed quality metrics)
         inf_start = time.time()
         logger.info("[SCREENING INFERENCE] Dispatching to ONNX inference session (model warm in memory)...")
-        ai_res = ai_service.analyze_fundus(
+        ai = get_ai_service()
+        ai_res = ai.analyze_fundus(
             temp_path,
             filename=file.filename or "",
             precomputed_quality=quality_metric
@@ -234,7 +233,7 @@ def create_screening(
         total_req_ms = (time.time() - req_start) * 1000
         logger.info(f"[SCREENING COMPLETE] Screening {screening_uid} persisted and returned in {total_req_ms:.1f}ms total.")
 
-        return map_screening_to_response(screening)
+        return map_screening_to_response(screening, include_images=True)
 
     finally:
         if os.path.exists(temp_path):
@@ -250,14 +249,18 @@ def list_screenings(
     limit: int = 50,
     doctor_verified: Optional[bool] = Query(None, description="Filter by doctor verification status"),
     phc_id: Optional[int] = Query(None, description="Filter by PHC for Super Admin"),
+    include_images: bool = Query(False, description="Whether to include full base64 images (default False for fast list response)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     Lists screening records with strict PHC tenant data isolation.
-    Doctors can filter by `doctor_verified=false` to view their pending review queue.
+    Optimized with joinedload and lightweight metadata pagination.
     """
-    query = db.query(Screening)
+    query = db.query(Screening).options(
+        joinedload(Screening.patient),
+        joinedload(Screening.phc),
+    )
 
     if current_user.role != "SUPER_ADMIN":
         query = query.filter(Screening.phc_id == current_user.phc_id)
@@ -268,7 +271,7 @@ def list_screenings(
         query = query.filter(Screening.doctor_verified == doctor_verified)
 
     screenings = query.order_by(Screening.created_at.desc()).offset(skip).limit(limit).all()
-    return [map_screening_to_response(s) for s in screenings]
+    return [map_screening_to_response(s, include_images=include_images) for s in screenings]
 
 
 @router.get("/{screening_id}", response_model=ScreeningResponse)
@@ -277,8 +280,13 @@ def get_screening(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Retrieves specific screening record details with PHC access validation."""
-    screening = db.query(Screening).filter(Screening.id == screening_id).first()
+    """Retrieves specific screening record details with full images and eager relationships."""
+    screening = (
+        db.query(Screening)
+        .options(joinedload(Screening.patient), joinedload(Screening.phc))
+        .filter(Screening.id == screening_id)
+        .first()
+    )
     if not screening:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -291,7 +299,7 @@ def get_screening(
             detail="Access forbidden: You cannot view screening records from another PHC."
         )
 
-    return map_screening_to_response(screening)
+    return map_screening_to_response(screening, include_images=True)
 
 
 @router.get("/{screening_id}/image")

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchScreenings, verifyScreening } from "../services/api";
+import { fetchScreenings, fetchScreeningDetails, verifyScreening } from "../services/api";
 import {
   Eye,
   CheckCircle2,
@@ -76,7 +76,7 @@ export default function DoctorReview() {
     return () => clearInterval(interval);
   }, [filterMode]);
 
-  const handleSelectScreening = (s) => {
+  const handleSelectScreening = async (s) => {
     setSelectedScreening(s);
     setVerifiedGrade(s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision : s.predicted_grade);
     setDoctorNotes(
@@ -84,6 +84,16 @@ export default function DoctorReview() {
         `AI prediction (Grade ${s.predicted_grade} - ${s.severity_label}) reviewed and verified by Dr. ${user?.name || "Consultant"}.`
     );
     setSuccessMessage("");
+
+    // Load full image details on demand if not present in lightweight list
+    if (!s.gradcam_reference || !s.fundus_image) {
+      try {
+        const fullDetail = await fetchScreeningDetails(s.id);
+        setSelectedScreening((curr) => (curr?.id === s.id ? { ...curr, ...fullDetail } : curr));
+      } catch (err) {
+        console.warn("Detail fetch notice:", err);
+      }
+    }
   };
 
   const handleVerifySubmit = async (e) => {
@@ -102,45 +112,54 @@ export default function DoctorReview() {
     }
   };
 
-  const handleOpenReport = (s) => {
-    const originalFundus = s.fundus_image || s.image_path || "";
+  const handleOpenReport = async (s) => {
+    let detail = s;
+    if (!detail.fundus_image || !detail.image_path) {
+      try {
+        detail = await fetchScreeningDetails(s.id);
+      } catch (err) {
+        console.warn("Could not fetch full details, using selected record:", err);
+      }
+    }
+
+    const originalFundus = detail.fundus_image || detail.image_path || "";
 
     const patObj = {
-      id: s.patient_id,
-      patient_uid: s.patient_uid || `NS-PUN-${String(s.patient_id).padStart(6, '0')}`,
-      full_name: s.patient_name || `Patient #${s.patient_id}`,
-      name: s.patient_name || `Patient #${s.patient_id}`,
-      age: s.patient_age,
-      gender: s.patient_gender,
-      examined_eye: s.examined_eye || "OD - Right Eye",
-      location: s.phc_name || "Primary Health Centre Pune",
+      id: detail.patient_id,
+      patient_uid: detail.patient_uid || `NS-PUN-${String(detail.patient_id).padStart(6, '0')}`,
+      full_name: detail.patient_name || `Patient #${detail.patient_id}`,
+      name: detail.patient_name || `Patient #${detail.patient_id}`,
+      age: detail.patient_age,
+      gender: detail.patient_gender,
+      examined_eye: detail.examined_eye || "OD - Right Eye",
+      location: detail.phc_name || "Primary Health Centre Pune",
     };
     setPatient(patObj);
 
     const resObj = {
       status: "success",
-      screening_id: s.id,
-      screening_uid: s.screening_uid,
-      patient_id: s.patient_id,
-      patient_uid: s.patient_uid,
-      patient_name: s.patient_name,
-      patient_age: s.patient_age,
-      patient_gender: s.patient_gender,
-      phc_name: s.phc_name,
-      examined_eye: s.examined_eye,
-      dr_grade: s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision : s.predicted_grade,
-      severity_label: s.severity_label,
-      referable: s.referable,
-      confidence: s.confidence,
-      gradcam_image: s.gradcam_reference || "",
+      screening_id: detail.id,
+      screening_uid: detail.screening_uid,
+      patient_id: detail.patient_id,
+      patient_uid: detail.patient_uid,
+      patient_name: detail.patient_name,
+      patient_age: detail.patient_age,
+      patient_gender: detail.patient_gender,
+      phc_name: detail.phc_name,
+      examined_eye: detail.examined_eye,
+      dr_grade: detail.doctor_verified && detail.doctor_decision !== null ? detail.doctor_decision : detail.predicted_grade,
+      severity_label: detail.severity_label,
+      referable: detail.referable,
+      confidence: detail.confidence,
+      gradcam_image: detail.gradcam_reference || "",
       fundus_image: originalFundus,
       image_path: originalFundus,
-      evidence: s.ai_evidence || [],
+      evidence: detail.ai_evidence || [],
       quality_metric: {
-        laplacian_variance: s.laplacian_variance,
+        laplacian_variance: detail.laplacian_variance,
         is_blurry: false,
         threshold: 35.0,
-        status: s.quality_status,
+        status: detail.quality_status,
       },
     };
     setAnalysisResult(resObj);
