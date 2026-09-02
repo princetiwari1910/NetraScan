@@ -98,6 +98,17 @@ function Results() {
     patient?.location ||
     "Primary Health Centre Pune";
 
+  const isDemographicsValid = Boolean(
+    patientName &&
+    patientName !== "Patient" &&
+    patientName !== "Screening Patient" &&
+    patientName.trim().length > 0 &&
+    patientAge &&
+    patientAge !== "—" &&
+    !isNaN(Number(patientAge)) &&
+    Number(patientAge) > 0
+  );
+
   const [activeTab, setActiveTab] = useState("overlay"); // "original" | "gradcam" | "overlay"
 
   const handleNewScreening = () => {
@@ -231,10 +242,23 @@ function Results() {
             </button>
 
             {!isInvalidFundus && !isRecaptureRequired && (
-              <Link to="/report" className="report-button">
-                <FileText size={17} />
-                Generate Clinical Report
-              </Link>
+              isDemographicsValid ? (
+                <Link to="/report" className="report-button">
+                  <FileText size={17} />
+                  Generate Clinical Report
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="report-button"
+                  style={{ opacity: 0.5, cursor: "not-allowed" }}
+                  onClick={() => alert("Cannot generate clinical report: Valid Patient Name and Age (> 0) are required.")}
+                  title="Patient name and valid age greater than 0 are required to generate clinical report."
+                >
+                  <FileText size={17} />
+                  Generate Clinical Report
+                </button>
+              )
             )}
           </div>
         </div>

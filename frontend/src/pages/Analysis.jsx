@@ -175,11 +175,41 @@ function Analysis() {
       } else if (activePatient?.id && typeof activePatient.id === "string" && /^\d+$/.test(activePatient.id)) {
         resolvedPatientId = parseInt(activePatient.id, 10);
       } else {
-        // 2. Auto-register or look up patient
+        const patientName = (activePatient?.full_name || activePatient?.name || "").trim();
+        const rawAge = String(activePatient?.age ?? "").trim();
+        const parsedAge = parseInt(rawAge, 10);
+
+        if (!patientName) {
+          setErrorState({
+            type: "VALIDATION_ERROR",
+            title: "Missing Patient Name",
+            message: "Patient name is required to perform retinal screening.",
+            action: "screening",
+          });
+          setIsProcessing(false);
+          isAnalyzing.current = false;
+          clearInterval(timer);
+          return;
+        }
+
+        if (!rawAge || isNaN(parsedAge) || parsedAge <= 0) {
+          setErrorState({
+            type: "VALIDATION_ERROR",
+            title: "Invalid Patient Age",
+            message: "A valid patient age greater than 0 is required to perform retinal screening.",
+            action: "screening",
+          });
+          setIsProcessing(false);
+          isAnalyzing.current = false;
+          clearInterval(timer);
+          return;
+        }
+
+        // 2. Register patient with backend
         try {
           const newPat = await createPatient({
-            full_name: activePatient?.full_name || activePatient?.name || "Screening Patient",
-            age: parseInt(activePatient?.age || "52", 10) || 52,
+            full_name: patientName,
+            age: parsedAge,
             gender: activePatient?.gender || "Female",
             phone: activePatient?.phone || "+91-9876543210",
             diabetes_status: activePatient?.diabetes_status || "Type 2",
@@ -191,6 +221,7 @@ function Analysis() {
           activePatient.patient_uid = newPat.patient_uid;
           activePatient.full_name = newPat.full_name;
           activePatient.name = newPat.full_name;
+          activePatient.age = newPat.age;
           setPatient(activePatient);
         } catch (patLookupErr) {
           console.warn("[NetraScan] Patient resolution notice:", patLookupErr.message);

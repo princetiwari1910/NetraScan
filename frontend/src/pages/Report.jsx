@@ -61,7 +61,22 @@ function Report() {
     year: "numeric",
   });
 
+  const isDemographicsValid = Boolean(
+    patientName &&
+    patientName !== "Patient" &&
+    patientName !== "Screening Patient" &&
+    patientName.trim().length > 0 &&
+    age &&
+    age !== "—" &&
+    !isNaN(Number(age)) &&
+    Number(age) > 0
+  );
+
   const handlePrint = () => {
+    if (!isDemographicsValid) {
+      alert("Cannot generate or print report: Valid Patient Name and Age greater than 0 are required.");
+      return;
+    }
     window.print();
   };
 
@@ -101,13 +116,43 @@ function Report() {
               type="button"
               className="report-download-button"
               onClick={handlePrint}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              disabled={!isDemographicsValid}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                opacity: isDemographicsValid ? 1 : 0.5,
+                cursor: isDemographicsValid ? "pointer" : "not-allowed",
+              }}
+              title={isDemographicsValid ? "Print or Save PDF" : "Valid Patient Name and Age (> 0) required."}
             >
               <Printer size={17} />
               Print / Save PDF
             </button>
           </div>
         </div>
+
+        {!isDemographicsValid && (
+          <div
+            role="alert"
+            style={{
+              padding: "12px 16px",
+              background: "#fff1f1",
+              color: "#b42318",
+              border: "1px solid #f3c2c2",
+              borderRadius: "10px",
+              marginBottom: "18px",
+              fontSize: "14px",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <AlertTriangle size={16} />
+            <span>Clinical report generation is blocked: Valid Patient Name and Age (&gt; 0) are required.</span>
+          </div>
+        )}
 
         {/* ================= RESULT STATUS BANNER ================= */}
         <section

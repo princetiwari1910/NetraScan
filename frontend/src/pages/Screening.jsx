@@ -128,23 +128,43 @@ function Screening() {
   // CONTINUE
   // ============================================
   const handleContinue = async () => {
+    setError("");
+
+    // 1. Validate Patient Name (Mandatory, non-whitespace)
+    const patientName = (patient?.name || patient?.full_name || "").trim();
+    if (!patientName) {
+      setError("Patient name is required.");
+      return;
+    }
+
+    // 2. Validate Age (Mandatory, numeric value > 0)
+    const rawAge = String(patient?.age ?? "").trim();
+    if (!rawAge) {
+      setError("Age is required.");
+      return;
+    }
+    const parsedAge = parseInt(rawAge, 10);
+    if (isNaN(parsedAge) || parsedAge <= 0) {
+      setError("Age must be greater than 0.");
+      return;
+    }
+
+    // 3. Validate Fundus Image Upload
     if (!image) {
       setError("Please upload a retinal fundus image first.");
       return;
     }
 
     setSubmitting(true);
-    setError("");
 
     try {
-      let currentPat = { ...patient };
+      let currentPat = { ...patient, name: patientName, full_name: patientName, age: String(parsedAge) };
 
       // If in new patient mode or patient.id is not a registered integer, register with backend immediately
       if (mode === "new" || !currentPat.id || typeof currentPat.id !== "number") {
-        const patientName = currentPat.name?.trim() || currentPat.full_name?.trim() || "Screening Patient";
         const registered = await createPatient({
           full_name: patientName,
-          age: parseInt(currentPat.age || "52", 10) || 52,
+          age: parsedAge,
           gender: currentPat.gender || "Female",
           phone: currentPat.phone || "+91-9876543210",
           diabetes_status: currentPat.diabetes_status || "Type 2",
@@ -314,7 +334,9 @@ function Screening() {
             <div className="form-grid">
               {/* Full Name */}
               <div className="form-group">
-                <label htmlFor="patient-name">Patient Full Name</label>
+                <label htmlFor="patient-name">
+                  Patient Full Name <span style={{ color: "#EF4444" }}>*</span>
+                </label>
                 <input
                   id="patient-name"
                   type="text"
@@ -323,12 +345,15 @@ function Screening() {
                   onChange={handlePatientChange}
                   placeholder="e.g. Priya Deshmukh"
                   disabled={mode === "existing" && !!patient.id}
+                  required
                 />
               </div>
 
               {/* Age */}
               <div className="form-group">
-                <label htmlFor="patient-age">Age (Years)</label>
+                <label htmlFor="patient-age">
+                  Age (Years) <span style={{ color: "#EF4444" }}>*</span>
+                </label>
                 <input
                   id="patient-age"
                   type="number"
@@ -338,6 +363,7 @@ function Screening() {
                   placeholder="Age"
                   min="1"
                   max="120"
+                  required
                 />
               </div>
 
