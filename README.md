@@ -414,11 +414,86 @@ print(f'Prediction: Grade {res.dr_grade} ({res.severity_label}), Confidence: {re
 
 ---
 
-## 🌐 Deployment Architecture
+---
 
-- **Frontend**: Deployed on **Vercel** (`https://netra-scan-nu.vercel.app`) using static Single Page Application builds.
-- **Backend**: Containerized with **Docker** on **Render** (`https://netrascan-4cem.onrender.com`) with persistent memory allocations.
-- **Communication**: Direct HTTPS REST communication over TLS with strict CORS origin verification.
+## ☁️ Modal Cloud Deployment
+
+NetraScan supports serverless cloud deployment via **Modal**, providing fast auto-scaling CPU inference with persistent model and database volumes.
+
+### 1. Modal Authentication
+
+Ensure the Modal CLI is installed and authenticated:
+```bash
+# 1. Install modal inside your environment
+pip install modal
+
+# 2. Authenticate with your Modal account
+modal setup
+```
+
+### 2. Model Volume Setup & Upload
+
+The ResNet-18 ONNX model weights (`42.71 MB`) are stored in a persistent Modal Volume (`netrascan-models`) so they do not need to be rebuilt into every container image:
+
+```bash
+# 1. Create the persistent volumes
+modal volume create netrascan-models
+modal volume create netrascan-data
+
+# 2. Upload the ONNX model to the volume
+modal volume put netrascan-models ml-training/models/NetraScan_ResNet18.onnx /NetraScan_ResNet18.onnx
+
+# 3. Verify volume contents
+modal volume ls netrascan-models /
+```
+
+### 3. Modal Development & Live Reload
+
+To run and test the backend with live hot-reloading on Modal:
+```bash
+modal serve modal_app.py
+```
+This generates an ephemeral development URL (e.g. `https://<username>--netrascan-backend-fastapi-app-dev.modal.run`).
+
+### 4. Production Deployment
+
+Deploy the persistent production endpoint:
+```bash
+modal deploy modal_app.py
+```
+**Production Live URL**:
+`https://princetiwari1910--netrascan-backend-fastapi-app.modal.run`
+
+### 5. Frontend API Configuration
+
+Point your frontend environment variables to the Modal deployment:
+
+In `frontend/.env`:
+```env
+VITE_API_BASE_URL=https://princetiwari1910--netrascan-backend-fastapi-app.modal.run
+```
+
+### 6. Managing & Monitoring
+
+```bash
+# View live application logs
+modal app logs netrascan-backend
+
+# Check running app status
+modal app list
+
+# Stop or tear down the deployment
+modal app stop netrascan-backend
+```
+
+### 7. Deployment Artifacts & Obsolete Files
+
+| File | Status | Notes |
+|---|---|---|
+| `modal_app.py` | **Active (Modal)** | Production ASGI entrypoint with volume mounts |
+| `requirements-modal.txt` | **Active (Modal)** | Container dependencies for Modal Debian Slim |
+| `Dockerfile` | **Legacy (Render)** | Kept for Docker/Render compatibility |
+| `render.yaml` | **Legacy (Render)** | Obsolete once transitioned to Modal |
 
 ---
 
