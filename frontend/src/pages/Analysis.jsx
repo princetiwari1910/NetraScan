@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
-import { analyzeRetinalImage, createScreening } from "../services/api";
+import { analyzeRetinalImage, createScreening, createPatient } from "../services/api";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
@@ -79,11 +79,30 @@ function Analysis() {
     const runInference = async () => {
       try {
         let result;
-        if (patient?.id && typeof patient.id === "number") {
+        let patId = patient?.id;
+        if (!patId || typeof patId !== "number") {
+          try {
+            const registered = await createPatient({
+              full_name: patient?.name || patient?.full_name || "Screening Patient",
+              age: parseInt(patient?.age || "52", 10) || 52,
+              gender: patient?.gender || "Female",
+              phone: patient?.phone || "+91-9876543210",
+              diabetes_status: patient?.diabetes_status || "Type 2",
+              diabetes_duration: patient?.diabetes_duration || "5 years",
+              medical_notes: patient?.medical_notes || "Screening intake via NetraScan portal.",
+            });
+            patId = registered.id;
+            setPatient((prev) => ({ ...prev, id: registered.id, patient_uid: registered.patient_uid }));
+          } catch (e) {
+            console.warn("Auto-register fallback failed:", e);
+          }
+        }
+
+        if (patId && typeof patId === "number") {
           // Call persistent PostgreSQL screening endpoint
           const record = await createScreening(
-            patient.id,
-            patient.examined_eye || "OD - Right Eye",
+            patId,
+            patient?.examined_eye || "OD - Right Eye",
             image
           );
           setScreeningRecord(record);

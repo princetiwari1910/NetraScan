@@ -133,8 +133,13 @@ function Results() {
         {/* ================= PATIENT INFO STRIP ================= */}
         <section className="result-patient-info">
           <div>
+            <span>Patient Name</span>
+            <strong>{patient?.full_name || patient?.name || "Patient"}</strong>
+          </div>
+
+          <div>
             <span>Patient ID</span>
-            <strong>{patient?.patient_uid || patient?.id || "NS-2026-001"}</strong>
+            <strong>{patient?.patient_uid || (typeof patient?.id === "string" ? patient?.id : `NS-2026-${String(patient?.id || 1).padStart(3, '0')}`)}</strong>
           </div>
 
           <div>
