@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
-import { openClinicalReport, verifyScreening } from "../services/api";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 import {
@@ -29,13 +28,9 @@ const ICDR_STAGES = [
 
 function Results() {
   const navigate = useNavigate();
-  const { patient, image, preview, analysisResult, screeningRecord, startNewScreening, user } = useScreening();
+  const { patient, image, preview, analysisResult, startNewScreening } = useScreening();
 
   const [activeTab, setActiveTab] = useState("overlay"); // "original" | "gradcam" | "overlay"
-  const [verifying, setVerifying] = useState(false);
-  const [doctorDecision, setDoctorDecision] = useState(analysisResult?.dr_grade ?? 0);
-  const [doctorNotes, setDoctorNotes] = useState("");
-  const [verifiedSuccess, setVerifiedSuccess] = useState(false);
 
   const handleNewScreening = () => {
     startNewScreening();
@@ -63,41 +58,6 @@ function Results() {
   const quality = analysisResult?.quality_metric || {
     status: "Pass",
     laplacian_variance: 168.4,
-  };
-
-  const screeningId = screeningRecord?.id || analysisResult?.screening_id;
-  const screeningUid = screeningRecord?.screening_uid || analysisResult?.screening_uid;
-  const modelName = analysisResult?.model?.name || screeningRecord?.model_name || "NetraScan ResNet-18";
-  const modelVersion = analysisResult?.model?.version || screeningRecord?.model_version || "1.0";
-  const inferenceTime = analysisResult?.model?.inference_time_ms || screeningRecord?.inference_time_ms || 28;
-
-  const handleViewHtmlReport = async (download = false) => {
-    if (screeningId) {
-      await openClinicalReport(screeningId, download);
-    } else {
-      navigate("/report");
-    }
-  };
-
-  const handleVerifyScreening = async (e) => {
-    e.preventDefault();
-    if (!screeningId) {
-      alert("No persistent screening ID available to certify.");
-      return;
-    }
-    setVerifying(true);
-    try {
-      await verifyScreening(
-        screeningId,
-        doctorDecision,
-        doctorNotes || `Verified as Grade ${doctorDecision} by consulting ophthalmologist.`
-      );
-      setVerifiedSuccess(true);
-    } catch (err) {
-      alert(err.message || "Failed to submit verification.");
-    } finally {
-      setVerifying(false);
-    }
   };
 
   return (
@@ -178,13 +138,6 @@ function Results() {
           </div>
 
           <div>
-            <span>Screening UID</span>
-            <strong style={{ color: "#2563EB", fontFamily: "monospace" }}>
-              {screeningUid || `NTR-${String(screeningId || "AUTO").slice(-8)}`}
-            </strong>
-          </div>
-
-          <div>
             <span>Age / Gender</span>
             <strong>
               {patient?.age || "58"} yrs • {patient?.gender || "Male"}
@@ -197,8 +150,8 @@ function Results() {
           </div>
 
           <div>
-            <span>Model / Latency</span>
-            <strong>{modelName} ({inferenceTime}ms)</strong>
+            <span>Screening Centre</span>
+            <strong>{patient?.location || "Primary Health Centre"}</strong>
           </div>
         </section>
 
@@ -684,135 +637,6 @@ function Results() {
               </div>
             </section>
 
-            {/* ================= DOCTOR VERIFICATION & CERTIFICATION PANEL ================= */}
-            {screeningId && (
-              <section
-                className="results-card"
-                style={{
-                  marginTop: "20px",
-                  border: "1px solid #CBD5E1",
-                  background: "#FFFFFF",
-                  borderRadius: "14px",
-                  padding: "20px",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                  <div>
-                    <span style={{ fontSize: "11px", fontWeight: "800", color: "#2563EB", letterSpacing: "1px" }}>
-                      PHYSICIAN REVIEW &amp; CERTIFICATION
-                    </span>
-                    <h3 style={{ margin: "4px 0 0", fontSize: "16px", color: "#1E293B" }}>
-                      Ophthalmologist Clinical Verification
-                    </h3>
-                  </div>
-                  {(verifiedSuccess || screeningRecord?.doctor_verified) && (
-                    <span
-                      style={{
-                        background: "#ECFDF5",
-                        color: "#059669",
-                        border: "1px solid #A7F3D0",
-                        padding: "4px 10px",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                        fontWeight: "700",
-                      }}
-                    >
-                      ✓ Certified by {screeningRecord?.doctor_name || "Ophthalmologist"}
-                    </span>
-                  )}
-                </div>
-
-                {user?.role === "DOCTOR" || user?.role === "SUPER_ADMIN" ? (
-                  <form onSubmit={handleVerifyScreening}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "12px", alignItems: "flex-end" }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>
-                          Certified Grade
-                        </label>
-                        <select
-                          value={doctorDecision}
-                          onChange={(e) => setDoctorDecision(parseInt(e.target.value, 10))}
-                          style={{
-                            width: "100%",
-                            height: "40px",
-                            borderRadius: "8px",
-                            border: "1px solid #CBD5E1",
-                            padding: "0 10px",
-                            fontSize: "13px",
-                            fontWeight: "600",
-                            backgroundColor: "#F8FAFC",
-                            color: "#1E293B",
-                          }}
-                        >
-                          {ICDR_STAGES.map((s) => (
-                            <option key={s.grade} value={s.grade}>
-                              Grade {s.grade} ({s.label})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>
-                          Clinical Verification Notes
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g., Confirmed Grade 2 with microaneurysms; refer to retina clinic."
-                          value={doctorNotes}
-                          onChange={(e) => setDoctorNotes(e.target.value)}
-                          style={{
-                            width: "100%",
-                            height: "40px",
-                            borderRadius: "8px",
-                            border: "1px solid #CBD5E1",
-                            padding: "0 12px",
-                            fontSize: "13px",
-                            backgroundColor: "#F8FAFC",
-                            color: "#1E293B",
-                          }}
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={verifying}
-                        style={{
-                          height: "40px",
-                          padding: "0 16px",
-                          backgroundColor: "#2563EB",
-                          color: "#FFFFFF",
-                          border: "none",
-                          borderRadius: "8px",
-                          fontSize: "13px",
-                          fontWeight: "700",
-                          cursor: "pointer",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {verifying ? "Certifying..." : "Certify Screening"}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC", padding: "12px 16px", borderRadius: "8px", border: "1px solid #E2E8F0" }}>
-                    <div style={{ fontSize: "13px", color: "#475569" }}>
-                      {screeningRecord?.doctor_verified ? (
-                        <span>Certified as <strong>Grade {screeningRecord.doctor_decision}</strong>: {screeningRecord.doctor_notes || "Clinical sign-off complete."}</span>
-                      ) : (
-                        <span>Case logged in queue. Ophthalmologists can sign off and verify this scan in the <Link to="/doctor/login" style={{ color: "#2563EB", fontWeight: "600" }}>Doctor Portal</Link>.</span>
-                      )}
-                    </div>
-                    {!screeningRecord?.doctor_verified && (
-                      <span style={{ fontSize: "11px", fontWeight: "700", background: "#FEF3C7", color: "#B45309", padding: "4px 8px", borderRadius: "6px" }}>
-                        PENDING DOCTOR SIGN-OFF
-                      </span>
-                    )}
-                  </div>
-                )}
-              </section>
-            )}
-
             {/* ================= DISCLAIMER ================= */}
             <div className="results-disclaimer">
               <AlertTriangle size={17} />
@@ -822,36 +646,20 @@ function Results() {
             </div>
 
             {/* ================= ACTIONS ================= */}
-            <div className="results-actions" style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "24px" }}>
+            <div className="results-actions">
               <button
                 type="button"
                 className="secondary-result-button"
                 onClick={handleNewScreening}
               >
                 <RotateCcw size={17} />
-                Start New Screening
+                Start New Patient Screening
               </button>
 
-              <button
-                type="button"
-                className="primary-result-button"
-                onClick={() => handleViewHtmlReport(false)}
-                style={{ background: "#2563EB", color: "#FFFFFF" }}
-              >
+              <Link to="/report" className="primary-result-button">
                 <FileText size={17} />
-                View Report
-              </button>
-
-              {screeningId && (
-                <button
-                  type="button"
-                  className="secondary-result-button"
-                  onClick={() => handleViewHtmlReport(true)}
-                  style={{ border: "1px solid #CBD5E1" }}
-                >
-                  Download Report
-                </button>
-              )}
+                Generate Printable Report
+              </Link>
             </div>
           </>
         )}

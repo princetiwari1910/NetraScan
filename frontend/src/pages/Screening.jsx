@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import {
@@ -14,34 +14,14 @@ import {
   CheckCircle2,
   AlertCircle,
   Activity,
-  Users,
-  UserPlus,
-  LoaderCircle,
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchPatients, createPatient } from "../services/api";
 
 function Screening() {
   const navigate = useNavigate();
   const { patient, setPatient, image, preview, saveImage, clearImage, phc } = useScreening();
 
   const [error, setError] = useState("");
-  const [patientList, setPatientList] = useState([]);
-  const [mode, setMode] = useState("new"); // "new" | "existing"
-  const [submitting, setSubmitting] = useState(false);
-
-  // Fetch existing patient cohort from PostgreSQL
-  useEffect(() => {
-    fetchPatients()
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setPatientList(data);
-        }
-      })
-      .catch((err) => {
-        console.warn("Could not load existing patient list:", err.message);
-      });
-  }, []);
 
   // ============================================
   // PATIENT INFORMATION
@@ -51,42 +31,7 @@ function Screening() {
     setPatient((previous) => ({
       ...previous,
       [name]: value,
-      ...(name === "name" ? { full_name: value } : {}),
-      ...(name === "full_name" ? { name: value } : {}),
     }));
-  };
-
-  const handleSelectExistingPatient = (e) => {
-    const selectedId = e.target.value;
-    if (!selectedId) {
-      setMode("new");
-      setPatient({
-        id: null,
-        patient_uid: "",
-        full_name: "",
-        name: "",
-        age: "52",
-        gender: "Female",
-        phone: "+91-9876543210",
-        diabetes_status: "Type 2",
-        diabetes_duration: "5 years",
-        medical_notes: "",
-        location: phc?.location || "",
-        examined_eye: "OD - Right Eye",
-      });
-      return;
-    }
-
-    const found = patientList.find((p) => String(p.id) === String(selectedId));
-    if (found) {
-      setMode("existing");
-      setPatient({
-        ...found,
-        name: found.full_name,
-        location: phc?.location || found.location || "",
-        examined_eye: patient.examined_eye || "OD - Right Eye",
-      });
-    }
   };
 
   // ============================================
@@ -127,50 +72,13 @@ function Screening() {
   // ============================================
   // CONTINUE
   // ============================================
-  const handleContinue = async () => {
+  const handleContinue = () => {
     if (!image) {
       setError("Please upload a retinal fundus image first.");
       return;
     }
 
-    setSubmitting(true);
-    setError("");
-
-    try {
-      let currentPat = { ...patient };
-
-      // If in new patient mode or patient.id is not a registered integer, register with backend immediately
-      if (!currentPat.id || typeof currentPat.id !== "number") {
-        const registered = await createPatient({
-          full_name: currentPat.name || currentPat.full_name || "Screening Patient",
-          age: parseInt(currentPat.age || "52", 10) || 52,
-          gender: currentPat.gender || "Female",
-          phone: currentPat.phone || "+91-9876543210",
-          diabetes_status: currentPat.diabetes_status || "Type 2",
-          diabetes_duration: currentPat.diabetes_duration || "5 years",
-          medical_notes: currentPat.medical_notes || "Screening intake via NetraScan portal.",
-        });
-
-        currentPat = {
-          ...currentPat,
-          id: registered.id,
-          patient_uid: registered.patient_uid,
-          full_name: registered.full_name,
-          name: registered.full_name,
-          age: registered.age,
-          gender: registered.gender,
-        };
-        setPatient(currentPat);
-      }
-
-      navigate("/analysis");
-    } catch (patErr) {
-      console.warn("Patient registration pre-check:", patErr.message);
-      // Still navigate so Analysis can attempt resolution
-      navigate("/analysis");
-    } finally {
-      setSubmitting(false);
-    }
+    navigate("/analysis");
   };
 
   return (
@@ -207,9 +115,9 @@ function Screening() {
         <div className="screening-header">
           <div>
             <span className="section-label">NEW SCREENING</span>
-            <h1>Start a Retinal Screening</h1>
+            <h1>Start a retinal screening</h1>
             <p>
-              Enter patient details or select from clinical records, then upload a retinal fundus scan for AI grading.
+              Enter basic patient information and upload a retinal fundus image to begin the NetraScan AI screening workflow.
             </p>
           </div>
 
@@ -235,100 +143,38 @@ function Screening() {
         <div className="screening-grid">
           {/* ================= PATIENT INFORMATION ================= */}
           <section className="screening-card">
-            <div className="card-header" style={{ justifyContent: "space-between" }}>
-              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                <div className="card-icon">
-                  <UserRound size={20} />
-                </div>
-                <div>
-                  <h2>Patient Information</h2>
-                  <p>Select existing cohort or intake new patient.</p>
-                </div>
+            <div className="card-header">
+              <div className="card-icon">
+                <UserRound size={20} />
               </div>
-
-              {patientList.length > 0 && (
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMode("new");
-                      setPatient((prev) => ({ ...prev, id: null, patient_uid: "" }));
-                    }}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      border: "1px solid #CBD5E1",
-                      background: mode === "new" ? "#2563EB" : "#FFFFFF",
-                      color: mode === "new" ? "#FFFFFF" : "#475569",
-                      cursor: "pointer",
-                    }}
-                  >
-                    New Patient
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("existing")}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      border: "1px solid #CBD5E1",
-                      background: mode === "existing" ? "#2563EB" : "#FFFFFF",
-                      color: mode === "existing" ? "#FFFFFF" : "#475569",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Select Existing
-                  </button>
-                </div>
-              )}
+              <div>
+                <h2>Patient Information</h2>
+                <p>Enter screening cohort details.</p>
+              </div>
             </div>
 
-            {mode === "existing" && patientList.length > 0 && (
-              <div className="form-group" style={{ marginBottom: "16px" }}>
-                <label htmlFor="select-patient">Choose Registered Patient</label>
-                <select
-                  id="select-patient"
-                  value={patient.id || ""}
-                  onChange={handleSelectExistingPatient}
-                  style={{ fontWeight: "500" }}
-                >
-                  <option value="">-- Choose from Registered Patients ({patientList.length}) --</option>
-                  {patientList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.patient_uid} — {p.full_name} ({p.age} yrs, {p.gender})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div className="form-grid">
-              {/* Full Name */}
+              {/* Patient ID */}
               <div className="form-group">
-                <label htmlFor="patient-name">Patient Full Name</label>
+                <label htmlFor="patient-id">Patient ID</label>
                 <input
-                  id="patient-name"
+                  id="patient-id"
                   type="text"
-                  name="name"
-                  value={patient.name || patient.full_name || ""}
+                  name="id"
+                  value={patient.id}
                   onChange={handlePatientChange}
-                  placeholder="e.g. Priya Deshmukh"
-                  disabled={mode === "existing" && !!patient.id}
+                  placeholder="e.g. NS-2026-001"
                 />
               </div>
 
               {/* Age */}
               <div className="form-group">
-                <label htmlFor="patient-age">Age (Years)</label>
+                <label htmlFor="patient-age">Age</label>
                 <input
                   id="patient-age"
                   type="number"
                   name="age"
-                  value={patient.age || ""}
+                  value={patient.age}
                   onChange={handlePatientChange}
                   placeholder="Age"
                   min="1"
@@ -342,33 +188,19 @@ function Screening() {
                 <select
                   id="patient-gender"
                   name="gender"
-                  value={patient.gender || "Female"}
+                  value={patient.gender}
                   onChange={handlePatientChange}
                 >
-                  <option value="Female">Female</option>
+                  <option value="">Select gender</option>
                   <option value="Male">Male</option>
+                  <option value="Female">Female</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
 
-              {/* Examined Eye */}
-              <div className="form-group">
-                <label htmlFor="examined-eye">Examined Eye (FOV)</label>
-                <select
-                  id="examined-eye"
-                  name="examined_eye"
-                  value={patient.examined_eye || "OD - Right Eye"}
-                  onChange={handlePatientChange}
-                >
-                  <option value="OD - Right Eye">OD - Right Eye (Oculus Dexter)</option>
-                  <option value="OS - Left Eye">OS - Left Eye (Oculus Sinister)</option>
-                  <option value="OU - Both Eyes">OU - Both Eyes</option>
-                </select>
-              </div>
-
               {/* Location */}
-              <div className="form-group" style={{ gridColumn: "span 2" }}>
-                <label htmlFor="patient-location">Screening Location / PHC</label>
+              <div className="form-group">
+                <label htmlFor="patient-location">Screening Location</label>
                 <div className="input-with-icon">
                   <MapPin size={16} />
                   <input
@@ -534,19 +366,9 @@ function Screening() {
             type="button"
             className="continue-button"
             onClick={handleContinue}
-            disabled={submitting}
           >
-            {submitting ? (
-              <>
-                <LoaderCircle size={18} className="spin" />
-                Registering Patient...
-              </>
-            ) : (
-              <>
-                Continue to AI Analysis
-                <ArrowRight size={18} />
-              </>
-            )}
+            Continue to AI Analysis
+            <ArrowRight size={18} />
           </button>
         </div>
 

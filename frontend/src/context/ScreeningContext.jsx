@@ -18,17 +18,17 @@ export function ScreeningProvider({ children }) {
   });
 
   const [patient, setPatient] = useState({
-    id: null,
-    patient_uid: "",
-    full_name: "",
-    name: "",
-    age: "52",
-    gender: "Female",
-    phone: "+91-9876543210",
+    id: 1,
+    patient_uid: "NS-PUN-000001",
+    full_name: "Rahul Sharma",
+    name: "Rahul Sharma",
+    age: "58",
+    gender: "Male",
+    phone: "+91-9823112233",
     diabetes_status: "Type 2",
-    diabetes_duration: "5 years",
-    medical_notes: "",
-    location: "",
+    diabetes_duration: "8 years",
+    medical_notes: "History of moderate hypertension. Regular metformin.",
+    location: "Primary Health Centre Pune",
     examined_eye: "OD - Right Eye",
   });
 
@@ -55,19 +55,14 @@ export function ScreeningProvider({ children }) {
     if (token) {
       fetchCurrentUser()
         .then((u) => {
-          if (u) {
-            setUser(u);
-            localStorage.setItem("netrascan_user", JSON.stringify(u));
-          }
+          setUser(u);
+          localStorage.setItem("netrascan_user", JSON.stringify(u));
         })
         .catch((err) => {
-          console.warn("[NetraScan Auth Notice]:", err.message);
-          // Only invalidate session if server explicitly returns 401 Unauthorized
-          if (err.httpStatus === 401 || err.message?.toLowerCase().includes("unauthorized")) {
-            setUser(null);
-            localStorage.removeItem("netrascan_user");
-            localStorage.removeItem("netrascan_token");
-          }
+          console.warn("Token expired or invalid:", err);
+          setUser(null);
+          localStorage.removeItem("netrascan_user");
+          localStorage.removeItem("netrascan_token");
         });
     }
   }, []);
@@ -79,13 +74,6 @@ export function ScreeningProvider({ children }) {
         name: user.phc_name || "Primary Health Centre Pune",
         location: user.phc_name || "Pune, Maharashtra",
         code: user.phc_code || "PUNE",
-      }
-    : localStorage.getItem("netrascan_token")
-    ? {
-        id: "PHC-PUNE-001",
-        name: "Primary Health Centre Pune",
-        location: "Pune, Maharashtra",
-        code: "PUNE",
       }
     : null;
 
@@ -112,14 +100,14 @@ export function ScreeningProvider({ children }) {
     } else {
       setPatient({
         id: null,
-        patient_uid: "",
+        patient_uid: `NS-${user?.phc_code || "PUN"}-NEW`,
         full_name: "",
         name: "",
-        age: "52",
-        gender: "Female",
-        phone: "+91-9876543210",
+        age: "",
+        gender: "Male",
+        phone: "",
         diabetes_status: "Type 2",
-        diabetes_duration: "5 years",
+        diabetes_duration: "",
         medical_notes: "",
         location: user?.phc_name || "Primary Health Centre",
         examined_eye: "OD - Right Eye",
