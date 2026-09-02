@@ -41,8 +41,8 @@ export default function DoctorReview() {
   const [submitting, setSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const loadScreenings = async () => {
-    setLoading(true);
+  const loadScreenings = async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       let data;
       if (filterMode === "pending") {
@@ -57,22 +57,31 @@ export default function DoctorReview() {
 
       setScreenings(data);
       if (data.length > 0) {
-        handleSelectScreening(data[0]);
+        setSelectedScreening((prev) => {
+          if (!prev) {
+            handleSelectScreening(data[0]);
+            return data[0];
+          }
+          const stillExists = data.find((item) => item.id === prev.id);
+          if (stillExists) return prev;
+          handleSelectScreening(data[0]);
+          return data[0];
+        });
       } else {
         setSelectedScreening(null);
       }
     } catch (err) {
       console.error("Failed to fetch screenings for doctor review:", err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadScreenings();
+    loadScreenings(false);
     const interval = setInterval(() => {
-      loadScreenings();
-    }, 12000);
+      loadScreenings(true);
+    }, 20000);
     return () => clearInterval(interval);
   }, [filterMode]);
 
