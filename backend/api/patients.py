@@ -18,9 +18,17 @@ router = APIRouter(prefix="/patients", tags=["Patient Management"])
 
 def generate_patient_uid(phc_code: str, db: Session) -> str:
     """Generates unique sequential patient UID formatted as NS-PUN-000001."""
-    count = db.query(Patient).count() + 1
     code_part = phc_code.upper()[:3] if phc_code else "GEN"
-    return f"NS-{code_part}-{count:06d}"
+    prefix = f"NS-{code_part}-"
+    last_patient = db.query(Patient).order_by(Patient.id.desc()).first()
+    max_id = last_patient.id if last_patient else 0
+    next_num = max_id + 1
+
+    # Guarantee uniqueness even if records were deleted
+    while db.query(Patient).filter(Patient.patient_uid == f"{prefix}{next_num:06d}").first() is not None:
+        next_num += 1
+
+    return f"{prefix}{next_num:06d}"
 
 
 def populate_patient_summary(patient: Patient) -> PatientResponse:
@@ -76,23 +84,30 @@ def create_patient(
 
     patient_uid = generate_patient_uid(phc.code, db)
 
-    patient = Patient(
-        patient_uid=patient_uid,
-        phc_id=assigned_phc_id,
-        full_name=payload.full_name,
-        date_of_birth=payload.date_of_birth,
-        age=payload.age,
-        gender=payload.gender,
-        phone=payload.phone,
-        email=payload.email,
-        address=payload.address,
-        diabetes_status=payload.diabetes_status,
-        diabetes_duration=payload.diabetes_duration,
-        medical_notes=payload.medical_notes,
-    )
-    db.add(patient)
-    db.commit()
-    db.refresh(patient)
+    try:
+        patient = Patient(
+            patient_uid=patient_uid,
+            phc_id=assigned_phc_id,
+            full_name=payload.full_name,
+            date_of_birth=payload.date_of_birth,
+            age=payload.age,
+            gender=payload.gender,
+            phone=payload.phone,
+            email=payload.email,
+            address=payload.address,
+            diabetes_status=payload.diabetes_status,
+            diabetes_duration=payload.diabetes_duration,
+            medical_notes=payload.medical_notes,
+        )
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not register patient record: {str(e)}"
+        )
 
     return populate_patient_summary(patient)
 

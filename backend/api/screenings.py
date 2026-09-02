@@ -47,9 +47,17 @@ router = APIRouter(prefix="/screenings", tags=["Screenings & AI Triage"])
 
 def generate_screening_uid(phc_code: str, db: Session) -> str:
     """Generates unique sequential screening UID formatted as SCR-PUN-000001."""
-    count = db.query(Screening).count() + 1
     code_part = phc_code.upper()[:3] if phc_code else "GEN"
-    return f"SCR-{code_part}-{count:06d}"
+    prefix = f"SCR-{code_part}-"
+    last_screening = db.query(Screening).order_by(Screening.id.desc()).first()
+    max_id = last_screening.id if last_screening else 0
+    next_num = max_id + 1
+
+    # Guarantee uniqueness even if records were deleted
+    while db.query(Screening).filter(Screening.screening_uid == f"{prefix}{next_num:06d}").first() is not None:
+        next_num += 1
+
+    return f"{prefix}{next_num:06d}"
 
 
 def map_screening_to_response(s: Screening, include_images: bool = True) -> ScreeningResponse:

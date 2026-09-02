@@ -199,21 +199,29 @@ export const fetchPatients = async (query = "") => {
 };
 
 export const createPatient = async (patientData) => {
-  const response = await fetch(`${API_BASE_URL}/patients`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(patientData),
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}/patients`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(patientData),
+    });
+  } catch (networkErr) {
+    console.error("createPatient network failure:", networkErr);
+    throw new Error(
+      `Network communication error (${networkErr.message}). Check internet connectivity or try again.`
+    );
+  }
 
   if (!response.ok) {
     handleAuthError(response.status);
 
     const err = await response.json().catch(() => ({}));
 
-    throw new Error(err.detail || "Failed to register new patient.");
+    throw new Error(err.detail || `Server returned error (${response.status}) registering patient.`);
   }
 
   return await response.json();

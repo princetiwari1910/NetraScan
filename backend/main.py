@@ -6,8 +6,8 @@ import tempfile
 import cv2
 from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status, Depends
-from fastapi.responses import HTMLResponse, Response
+from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status, Depends, Request
+from fastapi.responses import HTMLResponse, Response, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
@@ -95,6 +95,22 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Ensures CORS headers are always returned even when an unexpected error occurs."""
+    origin = request.headers.get("origin") or "https://netra-scan-nu.vercel.app"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Server processing error: {str(exc)}"},
+        headers={
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Allow-Methods": "*",
+        },
+    )
 
 # -----------------------------------------------------------------------------
 # Register Database & API Routers

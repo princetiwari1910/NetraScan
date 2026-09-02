@@ -42,7 +42,7 @@ image = (
         "bcrypt>=4.1.0",
         "pyjwt>=2.8.0",
     )
-    .env({"NETRASCAN_CODE_VERSION": "20260903_v3"})
+    .env({"NETRASCAN_CODE_VERSION": "20260903_v4"})
     .add_local_dir("backend", remote_path="/root/backend")
     .add_local_file(
         "ml-training/models/NetraScan_ResNet18.onnx",
