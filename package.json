@@ -4,6 +4,7 @@
   "description": "NetraScan — Local-First AI Retinal Screening Platform",
   "private": true,
   "scripts": {
+    "build": "npm --prefix frontend run build",
     "dev:backend": "PYTHONPATH=backend venv/bin/uvicorn main:app --app-dir backend --reload --port 8000",
     "dev:frontend": "npm --prefix frontend run dev",
     "dev": "npm --prefix frontend run dev",
