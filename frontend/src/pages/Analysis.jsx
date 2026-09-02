@@ -296,6 +296,8 @@ function Analysis() {
           referable: record.referable,
           confidence: record.confidence,
           class_probabilities: record.class_probabilities || {},
+          fundus_image: record.fundus_image || record.image_path || preview || "",
+          image_path: record.image_path || record.fundus_image || preview || "",
           gradcam_image: record.gradcam_reference || "",
           evidence: record.ai_evidence || [],
           quality_metric: {
@@ -352,6 +354,9 @@ function Analysis() {
         sessionStorage.setItem("netrascan_latest_result", JSON.stringify(result));
         if (persistedRecord) {
           sessionStorage.setItem("netrascan_latest_record", JSON.stringify(persistedRecord));
+        }
+        if (result.fundus_image) {
+          sessionStorage.setItem("netrascan_latest_preview", result.fundus_image);
         }
       } catch (sessionErr) {
         console.warn("Session storage notice:", sessionErr);

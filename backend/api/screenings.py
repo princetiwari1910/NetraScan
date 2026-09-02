@@ -4,6 +4,7 @@ import logging
 import shutil
 import tempfile
 import uuid
+import base64
 from datetime import datetime
 from typing import List, Optional
 
@@ -82,6 +83,8 @@ def map_screening_to_response(s: Screening) -> ScreeningResponse:
         model_name=s.model_name,
         model_version=s.model_version,
         inference_time_ms=s.inference_time_ms,
+        image_path=s.image_path,
+        fundus_image=s.image_path,
         gradcam_reference=s.gradcam_reference,
         ai_evidence=s.ai_evidence,
         class_probabilities=s.class_probabilities,
@@ -180,16 +183,34 @@ def create_screening(
         inf_duration_ms = (time.time() - inf_start) * 1000
         logger.info(f"[SCREENING INFERENCE] Inference completed in {inf_duration_ms:.1f}ms: Grade={ai_res.dr_grade}, Conf={ai_res.confidence*100:.2f}%")
 
-        # 5. Persist Screening Record
+        # 5. Persist Screening Record & Original Retinal Image
         db_start = time.time()
         phc = patient.phc
         screening_uid = generate_screening_uid(phc.code if phc else "GEN", db)
+
+        # Convert original uploaded retinal photograph to self-contained JPEG data URI
+        fundus_data_uri = None
+        try:
+            with open(temp_path, "rb") as f_read:
+                image_raw_bytes = f_read.read()
+            b64_fundus = base64.b64encode(image_raw_bytes).decode("utf-8")
+            fundus_mime = file.content_type or "image/jpeg"
+            fundus_data_uri = f"data:{fundus_mime};base64,{b64_fundus}"
+
+            # Also persist image file to Modal volume /data/images
+            images_dir = "/data/images"
+            os.makedirs(images_dir, exist_ok=True)
+            with open(os.path.join(images_dir, f"{screening_uid}.jpg"), "wb") as f_img:
+                f_img.write(image_raw_bytes)
+        except Exception as img_err:
+            logger.warning(f"Original image persistence notice: {img_err}")
 
         screening = Screening(
             screening_uid=screening_uid,
             patient_id=patient.id,
             phc_id=patient.phc_id,
             performed_by=current_user.name,
+            image_path=fundus_data_uri,
             examined_eye=examined_eye,
             quality_status=quality_metric.status,
             laplacian_variance=quality_metric.laplacian_variance,
@@ -271,6 +292,37 @@ def get_screening(
         )
 
     return map_screening_to_response(screening)
+
+
+@router.get("/{screening_id}/image")
+def get_screening_image(
+    screening_id: int,
+    db: Session = Depends(get_db),
+):
+    """Serve the original uploaded retinal fundus photograph for a screening."""
+    screening = db.query(Screening).filter(Screening.id == screening_id).first()
+    if not screening or not screening.image_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Original retinal image not found for this screening."
+        )
+
+    if screening.image_path.startswith("data:"):
+        try:
+            header, encoded = screening.image_path.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "")
+            image_bytes = base64.b64decode(encoded)
+            return Response(content=image_bytes, media_type=mime)
+        except Exception:
+            raise HTTPException(status_code=500, detail="Error decoding stored retinal image")
+    elif os.path.exists(screening.image_path):
+        with open(screening.image_path, "rb") as f:
+            return Response(content=f.read(), media_type="image/jpeg")
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image file not found on server."
+        )
 
 
 @router.post("/{screening_id}/verify", response_model=ScreeningResponse)

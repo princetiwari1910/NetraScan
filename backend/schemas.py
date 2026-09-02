@@ -244,6 +244,8 @@ class ScreeningResponse(BaseModel):
     model_name: str
     model_version: str
     inference_time_ms: int
+    image_path: Optional[str] = None
+    fundus_image: Optional[str] = None
     gradcam_reference: Optional[str] = None
     ai_evidence: Optional[List[str]] = None
     class_probabilities: Optional[Dict[str, float]] = None

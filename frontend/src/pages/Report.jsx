@@ -30,8 +30,34 @@ function Report() {
   const location = useLocation();
   const { patient: contextPatient, preview, analysisResult: contextResult } = useScreening();
 
-  const analysisResult = location.state?.analysisResult || contextResult;
-  const patient = location.state?.patient || contextPatient || {};
+  const savedResult = (() => {
+    try {
+      const s = sessionStorage.getItem("netrascan_latest_result");
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const savedPatient = (() => {
+    try {
+      const s = sessionStorage.getItem("netrascan_latest_patient");
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const savedPreview = (() => {
+    try {
+      return sessionStorage.getItem("netrascan_latest_preview");
+    } catch {
+      return null;
+    }
+  })();
+
+  const analysisResult = location.state?.analysisResult || contextResult || savedResult;
+  const patient = location.state?.patient || contextPatient || savedPatient || {};
 
   const patientName = analysisResult?.patient_name || patient?.full_name || patient?.name || "Patient";
   const patientUid =
@@ -47,7 +73,15 @@ function Report() {
   const severityLabel = analysisResult?.severity_label || "No Diabetic Retinopathy";
   const confidencePct = ((analysisResult?.confidence ?? 0.942) * 100).toFixed(1);
   const isReferable = analysisResult?.referable ?? false;
-  const gradcamUrl = analysisResult?.gradcam_image || preview;
+
+  const originalImageUrl =
+    analysisResult?.fundus_image ||
+    analysisResult?.image_path ||
+    preview ||
+    savedPreview ||
+    (analysisResult?.screening_id ? `https://princetiwari1910--netrascan-backend-fastapi-app.modal.run/api/screenings/${analysisResult.screening_id}/image` : null);
+
+  const gradcamUrl = analysisResult?.gradcam_image || "";
   const evidence = analysisResult?.evidence || [
     "Retinal microvasculature intact.",
     "No microaneurysms or blot hemorrhages detected.",
@@ -282,9 +316,9 @@ function Report() {
             </div>
 
             <div className="report-image-container" style={{ background: "#07111F", minHeight: "240px" }}>
-              {preview ? (
+              {originalImageUrl ? (
                 <img
-                  src={preview}
+                  src={originalImageUrl}
                   alt="Fundus photograph"
                   style={{ maxHeight: "240px", objectFit: "contain", margin: "0 auto" }}
                 />

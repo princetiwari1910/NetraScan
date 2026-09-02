@@ -31,7 +31,7 @@ const ICDR_STAGES = [
 
 export default function DoctorReview() {
   const navigate = useNavigate();
-  const { user, setPatient, setAnalysisResult } = useScreening();
+  const { user, setPatient, setAnalysisResult, setPreview } = useScreening();
   const [filterMode, setFilterMode] = useState("pending"); // "pending" | "all" | "referable"
   const [screenings, setScreenings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +103,8 @@ export default function DoctorReview() {
   };
 
   const handleOpenReport = (s) => {
+    const originalFundus = s.fundus_image || s.image_path || "";
+
     const patObj = {
       id: s.patient_id,
       patient_uid: s.patient_uid || `NS-PUN-${String(s.patient_id).padStart(6, '0')}`,
@@ -131,6 +133,8 @@ export default function DoctorReview() {
       referable: s.referable,
       confidence: s.confidence,
       gradcam_image: s.gradcam_reference || "",
+      fundus_image: originalFundus,
+      image_path: originalFundus,
       evidence: s.ai_evidence || [],
       quality_metric: {
         laplacian_variance: s.laplacian_variance,
@@ -140,6 +144,19 @@ export default function DoctorReview() {
       },
     };
     setAnalysisResult(resObj);
+    if (setPreview) {
+      setPreview(originalFundus || null);
+    }
+
+    try {
+      sessionStorage.setItem("netrascan_latest_result", JSON.stringify(resObj));
+      sessionStorage.setItem("netrascan_latest_patient", JSON.stringify(patObj));
+      if (originalFundus) {
+        sessionStorage.setItem("netrascan_latest_preview", originalFundus);
+      }
+    } catch {
+      // ignore
+    }
 
     navigate("/report", { state: { patient: patObj, analysisResult: resObj } });
   };

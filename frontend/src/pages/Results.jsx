@@ -133,7 +133,8 @@ function Results() {
     "Optic disc margin is well-defined.",
     "Annual routine tele-ophthalmology screening recommended.",
   ];
-  const gradcamUrl = analysisResult?.gradcam_image || preview;
+  const originalFundus = analysisResult?.fundus_image || analysisResult?.image_path || preview || null;
+  const gradcamUrl = analysisResult?.gradcam_image || "";
   const quality = analysisResult?.quality_metric || {
     status: "Pass",
     laplacian_variance: 168.4,
@@ -615,9 +616,9 @@ function Results() {
                     justifyContent: "center",
                   }}
                 >
-                  {preview ? (
+                  {originalFundus || preview ? (
                     <img
-                      src={activeTab === "gradcam" && gradcamUrl ? gradcamUrl : preview}
+                      src={activeTab === "gradcam" && gradcamUrl ? gradcamUrl : (originalFundus || preview)}
                       alt="Retinal Analysis"
                       style={{
                         maxWidth: "100%",
