@@ -29,7 +29,7 @@ const ICDR_STAGES = [
 
 function Results() {
   const navigate = useNavigate();
-  const { patient, image, preview, analysisResult, screeningRecord, startNewScreening } = useScreening();
+  const { patient, image, preview, analysisResult, screeningRecord, startNewScreening, user } = useScreening();
 
   const [activeTab, setActiveTab] = useState("overlay"); // "original" | "gradcam" | "overlay"
   const [verifying, setVerifying] = useState(false);
@@ -705,7 +705,7 @@ function Results() {
                       Ophthalmologist Clinical Verification
                     </h3>
                   </div>
-                  {verifiedSuccess && (
+                  {(verifiedSuccess || screeningRecord?.doctor_verified) && (
                     <span
                       style={{
                         background: "#ECFDF5",
@@ -717,82 +717,99 @@ function Results() {
                         fontWeight: "700",
                       }}
                     >
-                      ✓ Certified in PostgreSQL
+                      ✓ Certified by {screeningRecord?.doctor_name || "Ophthalmologist"}
                     </span>
                   )}
                 </div>
 
-                <form onSubmit={handleVerifyScreening}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "12px", alignItems: "flex-end" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>
-                        Certified Grade
-                      </label>
-                      <select
-                        value={doctorDecision}
-                        onChange={(e) => setDoctorDecision(parseInt(e.target.value, 10))}
+                {user?.role === "DOCTOR" || user?.role === "SUPER_ADMIN" ? (
+                  <form onSubmit={handleVerifyScreening}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr auto", gap: "12px", alignItems: "flex-end" }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>
+                          Certified Grade
+                        </label>
+                        <select
+                          value={doctorDecision}
+                          onChange={(e) => setDoctorDecision(parseInt(e.target.value, 10))}
+                          style={{
+                            width: "100%",
+                            height: "40px",
+                            borderRadius: "8px",
+                            border: "1px solid #CBD5E1",
+                            padding: "0 10px",
+                            fontSize: "13px",
+                            fontWeight: "600",
+                            backgroundColor: "#F8FAFC",
+                            color: "#1E293B",
+                          }}
+                        >
+                          {ICDR_STAGES.map((s) => (
+                            <option key={s.grade} value={s.grade}>
+                              Grade {s.grade} ({s.label})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>
+                          Clinical Verification Notes
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g., Confirmed Grade 2 with microaneurysms; refer to retina clinic."
+                          value={doctorNotes}
+                          onChange={(e) => setDoctorNotes(e.target.value)}
+                          style={{
+                            width: "100%",
+                            height: "40px",
+                            borderRadius: "8px",
+                            border: "1px solid #CBD5E1",
+                            padding: "0 12px",
+                            fontSize: "13px",
+                            backgroundColor: "#F8FAFC",
+                            color: "#1E293B",
+                          }}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={verifying}
                         style={{
-                          width: "100%",
                           height: "40px",
+                          padding: "0 16px",
+                          backgroundColor: "#2563EB",
+                          color: "#FFFFFF",
+                          border: "none",
                           borderRadius: "8px",
-                          border: "1px solid #CBD5E1",
-                          padding: "0 10px",
                           fontSize: "13px",
-                          fontWeight: "600",
-                          backgroundColor: "#F8FAFC",
-                          color: "#1E293B",
+                          fontWeight: "700",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        {ICDR_STAGES.map((s) => (
-                          <option key={s.grade} value={s.grade}>
-                            Grade {s.grade} ({s.label})
-                          </option>
-                        ))}
-                      </select>
+                        {verifying ? "Certifying..." : "Certify Screening"}
+                      </button>
                     </div>
-
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: "700", color: "#475569", marginBottom: "6px" }}>
-                        Clinical Verification Notes
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g., Confirmed Grade 2 with microaneurysms; refer to retina clinic."
-                        value={doctorNotes}
-                        onChange={(e) => setDoctorNotes(e.target.value)}
-                        style={{
-                          width: "100%",
-                          height: "40px",
-                          borderRadius: "8px",
-                          border: "1px solid #CBD5E1",
-                          padding: "0 12px",
-                          fontSize: "13px",
-                          backgroundColor: "#F8FAFC",
-                          color: "#1E293B",
-                        }}
-                      />
+                  </form>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#F8FAFC", padding: "12px 16px", borderRadius: "8px", border: "1px solid #E2E8F0" }}>
+                    <div style={{ fontSize: "13px", color: "#475569" }}>
+                      {screeningRecord?.doctor_verified ? (
+                        <span>Certified as <strong>Grade {screeningRecord.doctor_decision}</strong>: {screeningRecord.doctor_notes || "Clinical sign-off complete."}</span>
+                      ) : (
+                        <span>Case logged in queue. Ophthalmologists can sign off and verify this scan in the <Link to="/doctor/login" style={{ color: "#2563EB", fontWeight: "600" }}>Doctor Portal</Link>.</span>
+                      )}
                     </div>
-
-                    <button
-                      type="submit"
-                      disabled={verifying}
-                      style={{
-                        height: "40px",
-                        padding: "0 16px",
-                        backgroundColor: "#2563EB",
-                        color: "#FFFFFF",
-                        border: "none",
-                        borderRadius: "8px",
-                        fontSize: "13px",
-                        fontWeight: "700",
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {verifying ? "Certifying..." : "Certify Screening"}
-                    </button>
+                    {!screeningRecord?.doctor_verified && (
+                      <span style={{ fontSize: "11px", fontWeight: "700", background: "#FEF3C7", color: "#B45309", padding: "4px 8px", borderRadius: "6px" }}>
+                        PENDING DOCTOR SIGN-OFF
+                      </span>
+                    )}
                   </div>
-                </form>
+                )}
               </section>
             )}
 

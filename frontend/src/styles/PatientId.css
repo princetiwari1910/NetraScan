@@ -1,0 +1,423 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+
+/* =========================================================
+   PATIENT ID PAGE (WARM LIGHT CREAM THEME)
+   ========================================================= */
+
+.patient-id-page {
+  min-height: 100vh;
+  width: 100%;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  color: #1a1a1e;
+  box-sizing: border-box;
+
+  /* Ambient soft warm cream glow */
+  background-color: #fbf7f0;
+  background-image: 
+    radial-gradient(circle at 6% 92%, #e1eee8 0%, transparent 42%),
+    radial-gradient(circle at 94% 18%, #fae6d7 0%, transparent 48%),
+    radial-gradient(circle at 50% 50%, #fbf7f0 0%, transparent 100%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ================= NAVBAR ================= */
+
+.navbar {
+  width: 100%;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  border-bottom: 1px solid rgba(220, 215, 205, 0.6);
+  background: rgba(251, 247, 240, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.nav-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+/* Logo */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #1a1a1e;
+}
+
+.logo-highlight {
+  color: #2563eb;
+}
+
+.logo-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
+}
+
+/* Links */
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #556070;
+  transition: color 0.15s ease;
+}
+
+.nav-links a:hover {
+  color: #2563eb;
+}
+
+/* Actions */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-button.active {
+  padding: 8px 16px;
+  border-radius: 9px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 12.5px;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+}
+
+/* PHC Dropdown User */
+.phc-user-wrapper {
+  position: relative;
+}
+
+.phc-user-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.phc-user-button:hover {
+  border-color: #cbd5e1;
+}
+
+.phc-user-icon {
+  color: #15803d;
+}
+
+.phc-user-text {
+  text-align: left;
+}
+
+.phc-user-text strong {
+  display: block;
+  font-size: 12px;
+  color: #1a1a1e;
+}
+
+.phc-user-text span {
+  display: block;
+  font-size: 10.5px;
+  color: #6b7280;
+}
+
+.phc-chevron {
+  color: #9ca3af;
+  transition: transform 0.2s ease;
+}
+
+.phc-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* Dropdown Menu */
+.phc-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 250px;
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.9);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 12px 30px rgba(45, 30, 15, 0.08);
+  z-index: 100;
+}
+
+.phc-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f4f9;
+}
+
+.phc-dropdown-header strong {
+  display: block;
+  font-size: 13px;
+  color: #1a1a1e;
+}
+
+.phc-dropdown-header span {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.phc-info {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.phc-info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #4b5563;
+}
+
+.phc-info-row small {
+  display: block;
+  font-size: 10px;
+  color: #9ca3af;
+}
+
+.phc-info-row strong {
+  font-size: 12px;
+  color: #1a1a1e;
+}
+
+.phc-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.phc-logout:hover {
+  background: #fee2e2;
+}
+
+/* ================= MAIN CONTAINER ================= */
+
+.patient-id-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px 60px;
+}
+
+/* Patient Card */
+.patient-id-card {
+  width: 100%;
+  max-width: 440px;
+  background: #ffffff;
+  border: 1px solid rgba(229, 231, 235, 0.85);
+  border-radius: 20px;
+  padding: 36px;
+  box-sizing: border-box;
+  box-shadow: 
+    0 10px 25px -5px rgba(45, 30, 15, 0.04),
+    0 20px 40px -10px rgba(45, 30, 15, 0.05);
+  text-align: center;
+}
+
+/* Top Icon */
+.patient-id-icon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 18px;
+  border-radius: 14px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-label {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: #2563eb;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.patient-id-card h1 {
+  margin: 0 0 8px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #1a1a1e;
+}
+
+.patient-id-card p {
+  margin: 0 0 26px;
+  color: #6b7280;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* Form */
+.login-field {
+  text-align: left;
+  margin-bottom: 16px;
+}
+
+.login-field label {
+  display: block;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.login-input-wrapper {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #9ca3af;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.login-input-wrapper:focus-within {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.login-input-wrapper input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #1a1a1e;
+  font-size: 13.5px;
+  font-family: inherit;
+}
+
+.login-input-wrapper input::placeholder {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* Error Notice */
+.login-error {
+  margin-bottom: 16px;
+  padding: 9px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+}
+
+/* Submit Action Button */
+.login-submit-button {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  transition: all 0.2s ease;
+}
+
+.login-submit-button:hover {
+  background: #1d4ed8;
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+  transform: translateY(-1px);
+}
+
+/* Footer Badge */
+.login-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+  color: #6b7280;
+  text-align: left;
+}
+
+.login-card-footer span {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 768px) {
+  .nav-links {
+    display: none;
+  }
+
+  .nav-container {
+    padding: 14px 20px;
+  }
+
+  .patient-id-card {
+    padding: 28px 20px;
+  }
+}

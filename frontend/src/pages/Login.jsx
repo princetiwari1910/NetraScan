@@ -9,11 +9,9 @@ import {
   ScanSearch,
   Activity,
   Stethoscope,
-  LoaderCircle,
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
 import { loginUser } from "../services/api";
-import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
 function Login() {
   const navigate = useNavigate();
@@ -36,37 +34,34 @@ function Login() {
     setLoading(true);
 
     try {
-      // 1. Authenticate against real FastAPI backend
+      // 1. Authenticate against real backend
       const authData = await loginUser(phcId.trim(), password);
-      if (authData?.access_token && authData?.user) {
+      if (authData?.user) {
         loginUserContext(authData);
-        navigate("/home", { replace: true });
+        navigate("/home");
         return;
       }
-      throw new Error("Invalid response received from authentication service.");
     } catch (apiErr) {
-      console.warn("[NetraScan Auth Notice]:", apiErr.message);
-
-      // 2. Demo fallback credentials if offline
-      if (
-        (phcId === "PHC-PUNE-001" && password === "NetraScan@123") ||
-        (phcId === "staff" && password === "staff123") ||
-        (phcId === "admin" && password === "admin123")
-      ) {
-        loginPhc({
-          id: "PHC-PUNE-001",
-          name: "Primary Health Centre Pune",
-          location: "Pune, Maharashtra",
-          code: "PUNE",
-        });
-        navigate("/home", { replace: true });
-        return;
-      }
-
-      setError(apiErr.message || "Invalid PHC ID or password. Please verify credentials.");
-    } finally {
-      setLoading(false);
+      console.warn("Backend auth check:", apiErr.message);
     }
+
+    // 2. Demo fallback credentials
+    if (
+      (phcId === "PHC-PUNE-001" && password === "NetraScan@123") ||
+      (phcId === "staff" && password === "staff123") ||
+      (phcId === "admin" && password === "admin123")
+    ) {
+      loginPhc({
+        id: "PHC-PUNE-001",
+        name: "Primary Health Centre Pune",
+        location: "Pune, Maharashtra",
+      });
+      navigate("/home");
+      return;
+    }
+
+    setError("Invalid PHC ID or password.");
+    setLoading(false);
   };
 
   return (
@@ -80,7 +75,7 @@ function Login() {
         <div className="login-nav-container">
           <div className="login-logo">
             <div className="login-logo-icon">
-              <ScanningEyeIcon size={26} />
+              <Eye size={20} />
             </div>
             <span>
               Netra<span>Scan</span>
@@ -191,30 +186,9 @@ function Login() {
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="login-submit-button"
-                disabled={loading}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "8px",
-                  opacity: loading ? 0.85 : 1,
-                  cursor: loading ? "wait" : "pointer",
-                }}
-              >
-                {loading ? (
-                  <>
-                    <LoaderCircle size={18} className="spin" />
-                    Securing your clinical session…
-                  </>
-                ) : (
-                  <>
-                    Continue to PHC Portal
-                    <ArrowRight size={16} />
-                  </>
-                )}
+              <button type="submit" className="login-submit-button" disabled={loading}>
+                {loading ? "Authenticating..." : "Continue to PHC Portal"}
+                <ArrowRight size={16} />
               </button>
             </form>
 

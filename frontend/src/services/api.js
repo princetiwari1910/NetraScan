@@ -515,6 +515,8 @@ export const openClinicalReport = async (screeningId, download = false) => {
   }
 };
 
+export const fetchClinicalReport = fetchScreeningReportHtml;
+
 export const fetchDashboardStats = async () => {
   const response = await fetchWithTimeoutAndRetry(`${API_BASE_URL}/dashboard/stats`, {
     headers: { ...getAuthHeaders() },

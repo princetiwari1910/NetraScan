@@ -1,21 +1,19 @@
 import React from "react";
 
 /**
- * ScanningEyeIcon - Exact match of the NetraScan AI Retinal Scanner Symbol
- * 
+ * ScanningEyeIcon - Premium Medical AI Retinal Scanning Logo Icon
  * Features:
- * - Crisp almond eye contour with tapered optical endpoints
- * - Cardinal crosshair reticle spikes (12, 3, 6, 9 o'clock)
- * - Faint circular radar tracking ring with orbital telemetry light nodes
- * - High-tech aperture iris with mechanical/optical radial tick segments
- * - Multi-stage concentric glowing cyan/blue laser lens rings
- * - Glowing white foveal laser sensor core with cyan lens flare
+ * - Stylized geometric human eye contour
+ * - Retinal scan concentric targeting rings
+ * - Retinal vessel/neural diagnostic arc patterns
+ * - Subtle animated scanning beam & telemetry nodes
+ * - Fully responsive vector SVG with prefers-reduced-motion support
  */
 export function ScanningEyeIcon({
   size = 24,
   className = "",
   animated = true,
-  ariaLabel = "NetraScan Retinal Scanner",
+  ariaLabel = "NetraScan AI Retinal Scanner Logo",
   style = {},
 }) {
   const uniqueId = React.useId().replace(/:/g, "_");
@@ -27,7 +25,7 @@ export function ScanningEyeIcon({
       viewBox="0 0 100 100"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className={`netrascan-eye-scanner-exact ${animated ? "is-animated" : ""} ${className}`}
+      className={`netrascan-scanning-eye ${animated ? "is-animated" : ""} ${className}`}
       aria-label={ariaLabel}
       role="img"
       style={{
@@ -38,224 +36,265 @@ export function ScanningEyeIcon({
       }}
     >
       <defs>
-        {/* Glowing Center Pupil Radial Gradient */}
-        <radialGradient
-          id={`pupilGlow_${uniqueId}`}
-          cx="50"
-          cy="50"
-          r="16"
+        {/* Outer Eye Gradient */}
+        <linearGradient
+          id={`eyeOutlineGrad_${uniqueId}`}
+          x1="10"
+          y1="50"
+          x2="90"
+          y2="50"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#FFFFFF" />
-          <stop offset="25%" stopColor="#67E8F9" />
-          <stop offset="55%" stopColor="#06B6D4" />
-          <stop offset="85%" stopColor="#0284C7" />
-          <stop offset="100%" stopColor="#082F49" />
-        </radialGradient>
+          <stop offset="0%" stopColor="#38BDF8" />
+          <stop offset="50%" stopColor="#0284C7" />
+          <stop offset="100%" stopColor="#2563EB" />
+        </linearGradient>
 
-        {/* Outer Iris Track Gradient */}
+        {/* Retinal Iris Core Gradient */}
         <radialGradient
-          id={`irisRingGrad_${uniqueId}`}
+          id={`irisRadial_${uniqueId}`}
           cx="50"
           cy="50"
           r="26"
           gradientUnits="userSpaceOnUse"
         >
-          <stop offset="0%" stopColor="#082F49" />
-          <stop offset="60%" stopColor="#0E3B5A" />
-          <stop offset="90%" stopColor="#155E75" />
-          <stop offset="100%" stopColor="#06B6D4" />
+          <stop offset="0%" stopColor="#0284C7" />
+          <stop offset="45%" stopColor="#0369A1" />
+          <stop offset="85%" stopColor="#075985" />
+          <stop offset="100%" stopColor="#0C4A6E" />
         </radialGradient>
 
-        {/* Center Optical Flare Filter */}
-        <filter id={`coreFlare_${uniqueId}`} x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="1.5" result="blur" />
-          <feComposite in="SourceGraphic" in2="blur" operator="over" />
-        </filter>
+        {/* Scanning Laser Beam Gradient */}
+        <linearGradient
+          id={`scanBeamGrad_${uniqueId}`}
+          x1="18"
+          y1="50"
+          x2="82"
+          y2="50"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0" />
+          <stop offset="50%" stopColor="#38BDF8" stopOpacity="0.95" />
+          <stop offset="100%" stopColor="#2DD4BF" stopOpacity="0" />
+        </linearGradient>
 
-        {/* Subtle Lens Bloom Filter */}
-        <filter id={`bloom_${uniqueId}`} x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="0.8" result="blur" />
+        {/* Glow Filter for Scanning Laser */}
+        <filter id={`scanGlow_${uniqueId}`} x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.5" result="blur" />
           <feComposite in="SourceGraphic" in2="blur" operator="over" />
         </filter>
       </defs>
 
       <style>{`
-        @keyframes netraLaserPulse {
-          0%, 100% {
-            transform: scale(1);
-            opacity: 0.95;
+        @keyframes netrascanScanSweep {
+          0% {
+            transform: translateY(-8px);
+            opacity: 0.3;
           }
           50% {
-            transform: scale(1.06);
-            opacity: 1;
-            filter: drop-shadow(0 0 4px #38BDF8);
+            transform: translateY(8px);
+            opacity: 0.95;
+          }
+          100% {
+            transform: translateY(-8px);
+            opacity: 0.3;
           }
         }
-        @keyframes netraReticleSpin {
-          from {
-            transform: rotate(0deg);
+
+        @keyframes netrascanRadarPulse {
+          0%, 100% {
+            transform: scale(0.96);
+            opacity: 0.55;
           }
-          to {
-            transform: rotate(360deg);
+          50% {
+            transform: scale(1.04);
+            opacity: 0.95;
           }
         }
-        .netrascan-eye-scanner-exact.is-animated .netra-iris-pulse {
+
+        @keyframes netrascanNodeBlink {
+          0%, 100% { opacity: 0.4; transform: scale(0.85); }
+          50% { opacity: 1; transform: scale(1.25); }
+        }
+
+        .netrascan-scanning-eye.is-animated .eye-scan-line {
+          animation: netrascanScanSweep 3.2s ease-in-out infinite;
+          transform-origin: center;
+        }
+
+        .netrascan-scanning-eye.is-animated .eye-radar-ring {
+          animation: netrascanRadarPulse 2.8s ease-in-out infinite;
           transform-origin: 50px 50px;
-          animation: netraLaserPulse 3s ease-in-out infinite;
         }
-        .netrascan-eye-scanner-exact.is-animated .netra-telemetry-dots {
-          transform-origin: 50px 50px;
-          animation: netraReticleSpin 20s linear infinite;
+
+        .netrascan-scanning-eye.is-animated .eye-node-dot-1 {
+          animation: netrascanNodeBlink 2.4s ease-in-out infinite;
+          transform-origin: 50px 24px;
         }
+
+        .netrascan-scanning-eye.is-animated .eye-node-dot-2 {
+          animation: netrascanNodeBlink 2.4s ease-in-out 1.2s infinite;
+          transform-origin: 75px 50px;
+        }
+
         @media (prefers-reduced-motion: reduce) {
-          .netrascan-eye-scanner-exact.is-animated .netra-iris-pulse,
-          .netrascan-eye-scanner-exact.is-animated .netra-telemetry-dots {
-            animation: none;
+          .netrascan-scanning-eye.is-animated .eye-scan-line,
+          .netrascan-scanning-eye.is-animated .eye-radar-ring,
+          .netrascan-scanning-eye.is-animated .eye-node-dot-1,
+          .netrascan-scanning-eye.is-animated .eye-node-dot-2 {
+            animation: none !important;
           }
         }
       `}</style>
 
-      {/* ================= 1. CIRCULAR RADAR RETICLE & TELEMETRY ================= */}
-      {/* Background Target Circle */}
+      {/* ================= 1. OUTER EYE APERTURE (STYLIZED CONTOUR) ================= */}
+      {/* Top Eyelid Arc */}
+      <path
+        d="M8 50C18 24 40 16 50 16C60 16 82 24 92 50"
+        stroke={`url(#eyeOutlineGrad_${uniqueId})`}
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+      {/* Bottom Eyelid Arc */}
+      <path
+        d="M8 50C18 76 40 84 50 84C60 84 82 76 92 50"
+        stroke={`url(#eyeOutlineGrad_${uniqueId})`}
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+
+      {/* Optical Precision Corner Brackets */}
+      <path
+        d="M5 45L8 50L5 55"
+        stroke="#38BDF8"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.85"
+      />
+      <path
+        d="M95 45L92 50L95 55"
+        stroke="#38BDF8"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.85"
+      />
+
+      {/* ================= 2. RETINAL IRIS & CHOROID FIELD ================= */}
       <circle
         cx="50"
         cy="50"
-        r="32"
+        r="25"
+        fill={`url(#irisRadial_${uniqueId})`}
+        stroke="#0284C7"
+        strokeWidth="2"
+      />
+
+      {/* Retinal Concentric Radar Rings */}
+      <circle
+        cx="50"
+        cy="50"
+        r="20"
+        stroke="#38BDF8"
+        strokeWidth="1.5"
+        strokeDasharray="4 3"
+        opacity="0.75"
+        className="eye-radar-ring"
+      />
+      <circle
+        cx="50"
+        cy="50"
+        r="14"
         stroke="#7DD3FC"
         strokeWidth="1.2"
-        strokeOpacity="0.4"
-        strokeDasharray="2 4"
+        strokeDasharray="2 3"
+        opacity="0.6"
       />
 
-      {/* Orbital Telemetry Nodes / Optical Flare Particles */}
-      <g className="netra-telemetry-dots">
-        <circle cx="74" cy="28" r="1.8" fill="#38BDF8" filter={`url(#bloom_${uniqueId})`} />
-        <circle cx="74" cy="28" r="0.8" fill="#FFFFFF" />
-        <circle cx="76" cy="68" r="1.4" fill="#38BDF8" opacity="0.8" />
-        <circle cx="26" cy="70" r="1.2" fill="#38BDF8" opacity="0.6" />
-      </g>
-
-      {/* ================= 2. FOUR CARDINAL CROSSHAIR SPIKES ================= */}
-      {/* Top Spike (12 o'clock) */}
-      <line x1="50" y1="12" x2="50" y2="28" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
-      {/* Bottom Spike (6 o'clock) */}
-      <line x1="50" y1="72" x2="50" y2="88" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
-      {/* Left Spike (9 o'clock) */}
-      <line x1="12" y1="50" x2="28" y2="50" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
-      {/* Right Spike (3 o'clock) */}
-      <line x1="72" y1="50" x2="88" y2="50" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
-
-      {/* ================= 3. CRISP WHITE ALMOND EYE OUTLINE ================= */}
+      {/* Retinal Micro-Vascular & Neural Biomarker Arcs */}
       <path
-        d="M20 50C28 32 40 25 50 25C60 25 72 32 80 50C72 68 60 75 50 75C40 75 28 68 20 50Z"
-        stroke="#FFFFFF"
-        strokeWidth="4.2"
+        d="M38 56C42 52 46 54 49 50M35 44C40 46 44 43 47 48M62 44C58 46 55 42 53 47M64 56C59 53 56 55 53 51"
+        stroke="#38BDF8"
+        strokeWidth="1.4"
         strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="#082842"
-        fillOpacity="0.85"
+        opacity="0.8"
       />
 
-      {/* ================= 4. HIGH-TECH MULTI-STAGE APERTURE IRIS ================= */}
-      <g className="netra-iris-pulse">
-        {/* Outer Iris Dark Base */}
+      {/* ================= 3. CENTRAL FOVEAL PUPIL ================= */}
+      <circle
+        cx="50"
+        cy="50"
+        r="8"
+        fill="#07111F"
+        stroke="#38BDF8"
+        strokeWidth="1.5"
+      />
+      {/* Specular Optic Reflection */}
+      <circle
+        cx="47.5"
+        cy="47.5"
+        r="2"
+        fill="#FFFFFF"
+        opacity="0.95"
+      />
+
+      {/* ================= 4. ACTIVE AI SCANNING LASER BEAM ================= */}
+      <g className="eye-scan-line" filter={`url(#scanGlow_${uniqueId})`}>
+        {/* Horizontal Laser Sweep Wave */}
+        <line
+          x1="18"
+          y1="50"
+          x2="82"
+          y2="50"
+          stroke={`url(#scanBeamGrad_${uniqueId})`}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        {/* Scan Center Flare */}
         <circle
           cx="50"
           cy="50"
-          r="20.5"
-          fill={`url(#irisRingGrad_${uniqueId})`}
-          stroke="#00E5FF"
-          strokeWidth="1.5"
-        />
-
-        {/* Concentric Calibration Ring */}
-        <circle
-          cx="50"
-          cy="50"
-          r="18"
-          stroke="#38BDF8"
-          strokeWidth="0.8"
-          strokeDasharray="1.5 2"
-          opacity="0.85"
-        />
-
-        {/* Optical Aperture Radial Gear Ticks */}
-        {Array.from({ length: 16 }).map((_, i) => {
-          const angle = (i * 360) / 16;
-          const rad = (angle * Math.PI) / 180;
-          const x1 = 50 + 17.5 * Math.cos(rad);
-          const y1 = 50 + 17.5 * Math.sin(rad);
-          const x2 = 50 + 15 * Math.cos(rad);
-          const y2 = 50 + 15 * Math.sin(rad);
-          return (
-            <line
-              key={i}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke="#A5F3FC"
-              strokeWidth="1.1"
-              strokeLinecap="round"
-              opacity="0.9"
-            />
-          );
-        })}
-
-        {/* Middle Cyan Laser Ring */}
-        <circle
-          cx="50"
-          cy="50"
-          r="14"
-          stroke="#00E5FF"
-          strokeWidth="1.8"
-          opacity="0.95"
-        />
-
-        {/* Dark Separation Ring */}
-        <circle
-          cx="50"
-          cy="50"
-          r="11.5"
-          fill="#041829"
-          stroke="#38BDF8"
-          strokeWidth="1"
-        />
-
-        {/* Inner Laser Ring */}
-        <circle
-          cx="50"
-          cy="50"
-          r="8.5"
-          stroke="#00E5FF"
-          strokeWidth="1.4"
-        />
-
-        {/* Central Glowing Sensor Pupil Core */}
-        <circle
-          cx="50"
-          cy="50"
-          r="6.5"
-          fill={`url(#pupilGlow_${uniqueId})`}
-          filter={`url(#coreFlare_${uniqueId})`}
-        />
-
-        {/* Bright White Specular Aperture Center */}
-        <circle
-          cx="50"
-          cy="50"
-          r="2.8"
-          fill="#FFFFFF"
-        />
-        <circle
-          cx="48.8"
-          cy="48.8"
-          r="1.2"
-          fill="#FFFFFF"
+          r="2.5"
+          fill="#38BDF8"
           opacity="0.9"
         />
       </g>
+
+      {/* ================= 5. AI DIAGNOSTIC TELEMETRY NODES ================= */}
+      <circle
+        cx="50"
+        cy="24"
+        r="2.5"
+        fill="#38BDF8"
+        className="eye-node-dot-1"
+      />
+      <line
+        x1="50"
+        y1="24"
+        x2="50"
+        y2="30"
+        stroke="#38BDF8"
+        strokeWidth="1"
+        opacity="0.65"
+      />
+
+      <circle
+        cx="75"
+        cy="50"
+        r="2.5"
+        fill="#2DD4BF"
+        className="eye-node-dot-2"
+      />
+      <line
+        x1="70"
+        y1="50"
+        x2="75"
+        y2="50"
+        stroke="#2DD4BF"
+        strokeWidth="1"
+        opacity="0.65"
+      />
     </svg>
   );
 }

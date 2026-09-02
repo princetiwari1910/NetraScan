@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchScreenings, verifyScreening, openClinicalReport } from "../services/api";
+import { fetchScreenings, verifyScreening } from "../services/api";
 import {
   Eye,
   CheckCircle2,
@@ -130,32 +130,49 @@ export default function DoctorReview() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#07111F", color: "#F8FAFC" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        margin: 0,
+        padding: 0,
+        fontFamily: "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif",
+        backgroundColor: "#fbf7f0",
+        backgroundImage: `
+          radial-gradient(circle at 5% 95%, #e1eee8 0%, transparent 42%),
+          radial-gradient(circle at 95% 15%, #fae6d7 0%, transparent 48%),
+          radial-gradient(circle at 50% 50%, #fbf7f0 0%, transparent 100%)
+        `,
+        backgroundAttachment: "fixed",
+        color: "#1a1a1e",
+      }}
+    >
       <Navbar />
 
       <main style={{ maxWidth: "1360px", margin: "0 auto", padding: "32px 24px" }}>
         {/* HEADER */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px" }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
               <span
                 style={{
-                  background: "rgba(251, 146, 60, 0.15)",
-                  color: "#FB923C",
-                  border: "1px solid rgba(251, 146, 60, 0.3)",
-                  padding: "2px 8px",
+                  background: "#eff6ff",
+                  color: "#2563eb",
+                  border: "1px solid #dbeafe",
+                  padding: "3px 10px",
                   borderRadius: "12px",
-                  fontSize: "11px",
-                  fontWeight: "700",
+                  fontSize: "10px",
+                  fontWeight: "800",
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
                 }}
               >
                 OPHTHALMIC CLINICIAN PORTAL
               </span>
             </div>
-            <h1 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 6px 0", color: "#FB923C" }}>
+            <h1 style={{ fontSize: "32px", fontWeight: "900", margin: "0 0 6px 0", color: "#1a1a1e", letterSpacing: "-0.03em" }}>
               Doctor Review Queue &amp; Clinical Verification
             </h1>
-            <p style={{ color: "#94A3B8", fontSize: "14px", margin: 0 }}>
+            <p style={{ color: "#6b7280", fontSize: "14px", margin: 0, lineHeight: "1.6" }}>
               Examine live ONNX ResNet-18 model inferences, inspect Grad-CAM heatmaps, verify biomarkers, and sign off clinical decisions.
             </p>
           </div>
@@ -165,24 +182,26 @@ export default function DoctorReview() {
             style={{
               display: "flex",
               gap: "4px",
-              background: "#0D182E",
-              border: "1px solid #1E293B",
+              background: "#ffffff",
+              border: "1px solid #e5e7eb",
               padding: "4px",
-              borderRadius: "8px",
+              borderRadius: "10px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
             }}
           >
             <button
               type="button"
               onClick={() => setFilterMode("pending")}
               style={{
-                padding: "6px 12px",
-                borderRadius: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
                 fontSize: "12px",
-                fontWeight: "600",
+                fontWeight: "700",
                 border: "none",
                 cursor: "pointer",
-                background: filterMode === "pending" ? "#FB923C" : "transparent",
-                color: filterMode === "pending" ? "#000" : "#94A3B8",
+                transition: "all 0.15s ease",
+                background: filterMode === "pending" ? "#2563eb" : "transparent",
+                color: filterMode === "pending" ? "#ffffff" : "#64748b",
               }}
             >
               Pending Review
@@ -191,14 +210,15 @@ export default function DoctorReview() {
               type="button"
               onClick={() => setFilterMode("referable")}
               style={{
-                padding: "6px 12px",
-                borderRadius: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
                 fontSize: "12px",
-                fontWeight: "600",
+                fontWeight: "700",
                 border: "none",
                 cursor: "pointer",
-                background: filterMode === "referable" ? "#FB923C" : "transparent",
-                color: filterMode === "referable" ? "#000" : "#94A3B8",
+                transition: "all 0.15s ease",
+                background: filterMode === "referable" ? "#2563eb" : "transparent",
+                color: filterMode === "referable" ? "#ffffff" : "#64748b",
               }}
             >
               Referable Cases
@@ -207,14 +227,15 @@ export default function DoctorReview() {
               type="button"
               onClick={() => setFilterMode("all")}
               style={{
-                padding: "6px 12px",
-                borderRadius: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
                 fontSize: "12px",
-                fontWeight: "600",
+                fontWeight: "700",
                 border: "none",
                 cursor: "pointer",
-                background: filterMode === "all" ? "#FB923C" : "transparent",
-                color: filterMode === "all" ? "#000" : "#94A3B8",
+                transition: "all 0.15s ease",
+                background: filterMode === "all" ? "#2563eb" : "transparent",
+                color: filterMode === "all" ? "#ffffff" : "#64748b",
               }}
             >
               All Records
@@ -223,7 +244,7 @@ export default function DoctorReview() {
         </div>
 
         {loading ? (
-          <div style={{ padding: "60px", textAlign: "center", color: "#64748B" }}>
+          <div style={{ padding: "60px", textAlign: "center", color: "#6b7280" }}>
             Loading screening cases from database...
           </div>
         ) : screenings.length === 0 ? (
@@ -231,38 +252,40 @@ export default function DoctorReview() {
             style={{
               padding: "60px",
               textAlign: "center",
-              backgroundColor: "#0D182E",
-              borderRadius: "16px",
-              border: "1px solid #1E293B",
+              backgroundColor: "#ffffff",
+              borderRadius: "20px",
+              border: "1px solid rgba(229, 231, 235, 0.8)",
+              boxShadow: "0 10px 25px -5px rgba(45, 30, 15, 0.04)",
             }}
           >
             <CheckCircle2 size={48} color="#10B981" style={{ margin: "0 auto 16px auto" }} />
-            <h2 style={{ fontSize: "20px", fontWeight: "600", color: "#F8FAFC" }}>Review Queue Empty!</h2>
-            <p style={{ color: "#94A3B8" }}>There are no screening records matching the selected filter.</p>
+            <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#1a1a1e" }}>Review Queue Empty!</h2>
+            <p style={{ color: "#6b7280" }}>There are no screening records matching the selected filter.</p>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: "24px" }}>
             {/* QUEUE LIST */}
             <div
               style={{
-                backgroundColor: "#0D182E",
-                borderRadius: "16px",
-                border: "1px solid #1E293B",
-                padding: "20px",
+                backgroundColor: "#ffffff",
+                borderRadius: "20px",
+                border: "1px solid rgba(229, 231, 235, 0.8)",
+                padding: "22px",
+                boxShadow: "0 10px 25px -5px rgba(45, 30, 15, 0.04)",
               }}
             >
               <h2
                 style={{
                   fontSize: "16px",
-                  fontWeight: "700",
-                  marginBottom: "16px",
+                  fontWeight: "800",
+                  marginBottom: "18px",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px",
-                  color: "#F8FAFC",
+                  color: "#1a1a1e",
                 }}
               >
-                <Clock size={18} color="#FB923C" /> Triage Queue ({screenings.length} cases)
+                <Clock size={18} color="#2563eb" /> Triage Queue ({screenings.length} cases)
               </h2>
 
               <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "680px", overflowY: "auto" }}>
@@ -274,47 +297,50 @@ export default function DoctorReview() {
                       onClick={() => handleSelectScreening(s)}
                       style={{
                         padding: "14px 16px",
-                        borderRadius: "10px",
-                        backgroundColor: isSelected ? "rgba(251, 146, 60, 0.12)" : "#07111F",
-                        border: isSelected ? "1px solid #FB923C" : "1px solid #1E293B",
+                        borderRadius: "12px",
+                        backgroundColor: isSelected ? "#eff6ff" : "#fdfbf7",
+                        border: isSelected ? "1.5px solid #2563eb" : "1px solid #e5e7eb",
                         cursor: "pointer",
                         transition: "all 0.15s ease",
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                        <strong style={{ fontSize: "14px", color: isSelected ? "#FB923C" : "#F8FAFC" }}>
+                        <strong style={{ fontSize: "14px", color: isSelected ? "#2563eb" : "#1a1a1e", fontWeight: "700" }}>
                           {s.patient_name || `Patient #${s.patient_id}`}
                         </strong>
                         <span
                           style={{
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            padding: "2px 8px",
-                            borderRadius: "10px",
+                            fontSize: "10px",
+                            fontWeight: "800",
+                            padding: "3px 8px",
+                            borderRadius: "8px",
+                            letterSpacing: "0.04em",
                             background: s.doctor_verified
-                              ? "rgba(16, 185, 129, 0.2)"
+                              ? "#ecfdf5"
                               : s.referable
-                              ? "rgba(249, 115, 22, 0.2)"
-                              : "rgba(56, 189, 248, 0.2)",
+                              ? "#fef3c7"
+                              : "#e0f2fe",
                             color: s.doctor_verified
-                              ? "#10B981"
+                              ? "#059669"
                               : s.referable
-                              ? "#FB923C"
-                              : "#38BDF8",
+                              ? "#d97706"
+                              : "#0284c7",
                           }}
                         >
                           {s.doctor_verified ? "VERIFIED" : s.referable ? "REFERABLE" : "ROUTINE"}
                         </span>
                       </div>
 
-                      <div style={{ fontSize: "12px", color: "#94A3B8", display: "flex", justifyContent: "space-between" }}>
+                      <div style={{ fontSize: "12px", color: "#64748b", display: "flex", justifyContent: "space-between" }}>
                         <span>
                           Grade {s.predicted_grade} ({s.severity_label})
                         </span>
-                        <span style={{ fontFamily: "monospace" }}>{(s.confidence * 100).toFixed(1)}% Conf</span>
+                        <span style={{ fontFamily: "monospace", fontWeight: "600", color: "#334155" }}>
+                          {(s.confidence * 100).toFixed(1)}% Conf
+                        </span>
                       </div>
 
-                      <div style={{ fontSize: "11px", color: "#64748B", marginTop: "4px" }}>
+                      <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>
                         {s.examined_eye} • {s.screening_uid} • {new Date(s.screened_at).toLocaleDateString()}
                       </div>
                     </div>
@@ -327,71 +353,51 @@ export default function DoctorReview() {
             {selectedScreening && (
               <div
                 style={{
-                  backgroundColor: "#0D182E",
-                  borderRadius: "16px",
-                  border: "1px solid #1E293B",
-                  padding: "24px",
+                  backgroundColor: "#ffffff",
+                  borderRadius: "20px",
+                  border: "1px solid rgba(229, 231, 235, 0.8)",
+                  padding: "26px",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "20px",
+                  gap: "22px",
+                  boxShadow: "0 10px 25px -5px rgba(45, 30, 15, 0.04)",
                 }}
               >
                 {/* TOP META */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div>
-                    <span style={{ fontSize: "11px", color: "#94A3B8", fontWeight: "700" }}>
+                    <span style={{ fontSize: "11px", color: "#2563eb", fontWeight: "800", letterSpacing: "0.05em" }}>
                       SCREENING #{selectedScreening.screening_uid}
                     </span>
-                    <h2 style={{ fontSize: "20px", fontWeight: "700", margin: "2px 0 4px 0" }}>
+                    <h2 style={{ fontSize: "22px", fontWeight: "800", margin: "2px 0 4px 0", color: "#1a1a1e" }}>
                       {selectedScreening.patient_name || `Patient #${selectedScreening.patient_id}`}
                     </h2>
-                    <p style={{ color: "#94A3B8", fontSize: "13px", margin: 0 }}>
+                    <p style={{ color: "#6b7280", fontSize: "13px", margin: 0 }}>
                       {selectedScreening.patient_age || 58} yrs • {selectedScreening.patient_gender || "Male"} • {selectedScreening.examined_eye} • {selectedScreening.phc_name || "PHC Centre"}
                     </p>
                   </div>
 
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button
-                      type="button"
-                      onClick={() => openClinicalReport(selectedScreening.id, false)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        background: "#2563EB",
-                        border: "none",
-                        color: "#FFFFFF",
-                        padding: "8px 14px",
-                        borderRadius: "8px",
-                        fontSize: "13px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <FileText size={15} />
-                      View HTML Report
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleOpenReport(selectedScreening)}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "6px",
-                        background: "rgba(255, 255, 255, 0.06)",
-                        border: "1px solid #334155",
-                        color: "#F8FAFC",
-                        padding: "8px 12px",
-                        borderRadius: "8px",
-                        fontSize: "13px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Print Summary
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenReport(selectedScreening)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: "#f8fafc",
+                      border: "1px solid #e2e8f0",
+                      color: "#1e293b",
+                      padding: "8px 14px",
+                      borderRadius: "9px",
+                      fontSize: "12.5px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                    }}
+                  >
+                    <FileText size={15} color="#2563eb" />
+                    View Clinical Report
+                  </button>
                 </div>
 
                 {/* GRAD-CAM & AI PREDICTION BOX */}
@@ -400,21 +406,21 @@ export default function DoctorReview() {
                     display: "grid",
                     gridTemplateColumns: "1.2fr 1fr",
                     gap: "16px",
-                    background: "#07111F",
-                    border: "1px solid #1E293B",
-                    borderRadius: "12px",
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "14px",
                     padding: "16px",
                   }}
                 >
                   {/* Grad-CAM Preview */}
                   <div style={{ textAlign: "center" }}>
-                    <span style={{ fontSize: "11px", color: "#94A3B8", display: "block", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "11px", color: "#64748b", display: "block", marginBottom: "6px", fontWeight: "600" }}>
                       res5b_relu Grad-CAM Attention Heatmap
                     </span>
                     <div
                       style={{
-                        background: "#000",
-                        borderRadius: "8px",
+                        background: "#0f172a",
+                        borderRadius: "10px",
                         overflow: "hidden",
                         minHeight: "180px",
                         display: "flex",
@@ -429,37 +435,40 @@ export default function DoctorReview() {
                           style={{ maxHeight: "200px", maxWidth: "100%", objectFit: "contain" }}
                         />
                       ) : (
-                        <span style={{ color: "#64748B", fontSize: "12px" }}>No Heatmap Image</span>
+                        <span style={{ color: "#94a3b8", fontSize: "12px" }}>No Heatmap Image</span>
                       )}
                     </div>
                   </div>
 
                   {/* AI Metrics */}
-                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "10px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: "12px" }}>
                     <div>
-                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>AI PREDICTED ICDR GRADE</span>
-                      <strong style={{ fontSize: "20px", display: "block", color: "#FB923C" }}>
+                      <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "700" }}>AI PREDICTED ICDR GRADE</span>
+                      <strong style={{ fontSize: "20px", display: "block", color: "#2563eb", fontWeight: "800" }}>
                         Grade {selectedScreening.predicted_grade}
                       </strong>
-                      <span style={{ fontSize: "12px", color: "#F8FAFC" }}>{selectedScreening.severity_label}</span>
+                      <span style={{ fontSize: "12px", color: "#334155", fontWeight: "600" }}>{selectedScreening.severity_label}</span>
                     </div>
 
                     <div>
-                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>CONFIDENCE SCORE</span>
-                      <strong style={{ fontSize: "16px", display: "block", color: "#38BDF8", fontFamily: "monospace" }}>
+                      <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "700" }}>CONFIDENCE SCORE</span>
+                      <strong style={{ fontSize: "16px", display: "block", color: "#0284c7", fontFamily: "monospace", fontWeight: "700" }}>
                         {(selectedScreening.confidence * 100).toFixed(1)}%
                       </strong>
                     </div>
 
                     <div>
-                      <span style={{ fontSize: "11px", color: "#94A3B8" }}>REFERRAL STATUS</span>
+                      <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "700" }}>REFERRAL STATUS</span>
                       <span
                         style={{
                           display: "inline-block",
-                          marginTop: "2px",
+                          marginTop: "3px",
                           fontSize: "11px",
-                          fontWeight: "700",
-                          color: selectedScreening.referable ? "#FB923C" : "#10B981",
+                          fontWeight: "800",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          background: selectedScreening.referable ? "#fef3c7" : "#ecfdf5",
+                          color: selectedScreening.referable ? "#b45309" : "#047857",
                         }}
                       >
                         {selectedScreening.referable ? "⚠️ Referable (≥0.35 threshold)" : "✓ Non-Referable"}
@@ -471,7 +480,7 @@ export default function DoctorReview() {
                 {/* CLINICAL EVIDENCE CHECKLIST */}
                 {selectedScreening.ai_evidence && (
                   <div>
-                    <span style={{ fontSize: "12px", fontWeight: "700", color: "#94A3B8", textTransform: "uppercase" }}>
+                    <span style={{ fontSize: "11px", fontWeight: "800", color: "#64748b", letterSpacing: "0.06em", textTransform: "uppercase" }}>
                       Biomarkers &amp; Diagnostic Findings
                     </span>
                     <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginTop: "8px" }}>
@@ -483,13 +492,14 @@ export default function DoctorReview() {
                             alignItems: "center",
                             gap: "8px",
                             fontSize: "12px",
-                            color: "#CBD5E1",
-                            background: "rgba(255, 255, 255, 0.03)",
-                            padding: "6px 10px",
-                            borderRadius: "6px",
+                            color: "#334155",
+                            background: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            padding: "7px 12px",
+                            borderRadius: "8px",
                           }}
                         >
-                          <Check size={13} color="#38BDF8" />
+                          <Check size={13} color="#2563eb" />
                           <span>{ev}</span>
                         </div>
                       ))}
@@ -501,15 +511,15 @@ export default function DoctorReview() {
                 <form
                   onSubmit={handleVerifySubmit}
                   style={{
-                    borderTop: "1px solid #1E293B",
-                    paddingTop: "16px",
+                    borderTop: "1px solid #e5e7eb",
+                    paddingTop: "18px",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "14px",
+                    gap: "16px",
                   }}
                 >
                   <div>
-                    <label style={{ fontSize: "12px", fontWeight: "700", color: "#F8FAFC", display: "block", marginBottom: "8px" }}>
+                    <label style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1e", display: "block", marginBottom: "8px" }}>
                       Ophthalmologist Final Certified Grade:
                     </label>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px" }}>
@@ -521,15 +531,17 @@ export default function DoctorReview() {
                             type="button"
                             onClick={() => setVerifiedGrade(stg.grade)}
                             style={{
-                              padding: "8px 4px",
-                              borderRadius: "8px",
-                              border: isChosen ? `2px solid ${stg.color}` : "1px solid #334155",
-                              background: isChosen ? "rgba(255, 255, 255, 0.1)" : "#07111F",
-                              color: isChosen ? "#FFF" : "#94A3B8",
+                              padding: "10px 4px",
+                              borderRadius: "9px",
+                              border: isChosen ? `2px solid ${stg.color}` : "1px solid #e2e8f0",
+                              background: isChosen ? "#ffffff" : "#f8fafc",
+                              boxShadow: isChosen ? `0 0 0 1px ${stg.color}` : "none",
+                              color: isChosen ? "#1a1a1e" : "#64748b",
                               fontWeight: "700",
                               fontSize: "12px",
                               cursor: "pointer",
                               textAlign: "center",
+                              transition: "all 0.15s ease",
                             }}
                           >
                             <div>Grade {stg.grade}</div>
@@ -540,7 +552,7 @@ export default function DoctorReview() {
                   </div>
 
                   <div>
-                    <label style={{ fontSize: "12px", fontWeight: "700", color: "#F8FAFC", display: "block", marginBottom: "6px" }}>
+                    <label style={{ fontSize: "12px", fontWeight: "700", color: "#1a1a1e", display: "block", marginBottom: "6px" }}>
                       Doctor Clinical Observations &amp; Verification Notes:
                     </label>
                     <textarea
@@ -550,13 +562,15 @@ export default function DoctorReview() {
                       placeholder="Input clinical impressions, macular findings, or referral instructions..."
                       style={{
                         width: "100%",
-                        padding: "10px",
-                        background: "#07111F",
-                        border: "1px solid #334155",
-                        color: "#F8FAFC",
-                        borderRadius: "8px",
+                        padding: "10px 12px",
+                        background: "#ffffff",
+                        border: "1px solid #dce1e9",
+                        color: "#1a1a1e",
+                        borderRadius: "9px",
                         fontSize: "13px",
+                        fontFamily: "inherit",
                         resize: "vertical",
+                        boxSizing: "border-box",
                       }}
                     />
                   </div>
@@ -564,12 +578,13 @@ export default function DoctorReview() {
                   {successMessage && (
                     <div
                       style={{
-                        background: "rgba(16, 185, 129, 0.1)",
-                        border: "1px solid rgba(16, 185, 129, 0.3)",
-                        color: "#6EE7B7",
-                        padding: "10px",
-                        borderRadius: "8px",
+                        background: "#ecfdf5",
+                        border: "1px solid #a7f3d0",
+                        color: "#047857",
+                        padding: "10px 14px",
+                        borderRadius: "9px",
                         fontSize: "13px",
+                        fontWeight: "600",
                         display: "flex",
                         alignItems: "center",
                         gap: "8px",
@@ -588,15 +603,17 @@ export default function DoctorReview() {
                         display: "inline-flex",
                         alignItems: "center",
                         gap: "8px",
-                        background: "#2563EB",
-                        color: "#FFFFFF",
+                        background: "#2563eb",
+                        color: "#ffffff",
                         border: "none",
                         padding: "10px 24px",
-                        borderRadius: "8px",
-                        fontWeight: "600",
-                        fontSize: "14px",
+                        borderRadius: "9px",
+                        fontWeight: "700",
+                        fontSize: "13.5px",
+                        fontFamily: "inherit",
                         cursor: submitting ? "not-allowed" : "pointer",
-                        boxShadow: "0 4px 12px rgba(37, 99, 235, 0.3)",
+                        boxShadow: "0 4px 14px rgba(37, 99, 235, 0.25)",
+                        transition: "all 0.15s ease",
                       }}
                     >
                       <FileCheck size={16} />
