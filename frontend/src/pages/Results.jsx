@@ -38,9 +38,27 @@ function Results() {
     startNewScreening,
   } = useScreening();
 
-  const analysisResult = location.state?.analysisResult || contextResult;
-  const screeningRecord = location.state?.screeningRecord || contextRecord;
-  const patient = location.state?.patient || contextPatient;
+  const savedResult = (() => {
+    try {
+      const s = sessionStorage.getItem("netrascan_latest_result");
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const savedRecord = (() => {
+    try {
+      const s = sessionStorage.getItem("netrascan_latest_record");
+      return s ? JSON.parse(s) : null;
+    } catch {
+      return null;
+    }
+  })();
+
+  const analysisResult = location.state?.analysisResult || contextResult || savedResult;
+  const screeningRecord = location.state?.screeningRecord || contextRecord || savedRecord;
+  const patient = location.state?.patient || contextPatient || {};
 
   // Resolve authoritative patient values from live database record first
   const patientName =
@@ -109,6 +127,47 @@ function Results() {
     status: "Pass",
     laplacian_variance: 168.4,
   };
+
+  if (!analysisResult && !preview) {
+    return (
+      <div
+        className="results-page"
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 20px",
+          textAlign: "center",
+          background: "#fbf7f0",
+        }}
+      >
+        <h2 style={{ fontSize: "22px", fontWeight: "800", color: "#0F172A", marginBottom: "8px" }}>
+          No Active Screening Result
+        </h2>
+        <p style={{ color: "#64748B", fontSize: "14px", maxWidth: "440px", marginBottom: "24px", lineHeight: "1.6" }}>
+          There is no retinal fundus screening session currently in memory. Please start a new screening from the clinic intake dashboard.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/screening")}
+          style={{
+            padding: "10px 22px",
+            background: "#2563EB",
+            color: "#FFFFFF",
+            border: "none",
+            borderRadius: "8px",
+            fontSize: "14px",
+            fontWeight: "700",
+            cursor: "pointer",
+          }}
+        >
+          Start New Screening
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="results-page">

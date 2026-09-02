@@ -31,7 +31,7 @@ function Report() {
   const { patient: contextPatient, preview, analysisResult: contextResult } = useScreening();
 
   const analysisResult = location.state?.analysisResult || contextResult;
-  const patient = location.state?.patient || contextPatient;
+  const patient = location.state?.patient || contextPatient || {};
 
   const patientName = analysisResult?.patient_name || patient?.full_name || patient?.name || "Patient";
   const patientUid =

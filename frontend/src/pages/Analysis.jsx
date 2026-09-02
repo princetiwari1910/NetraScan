@@ -44,7 +44,8 @@ function Analysis() {
     user,
   } = useScreening();
 
-  const activePatient = location.state?.patient || contextPatient;
+  const patient = location.state?.patient || contextPatient || {};
+  const activePatient = patient;
 
   const [activeStageIndex, setActiveStageIndex] = useState(1); // Stage 1: Fundus image validation
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -315,6 +316,15 @@ function Analysis() {
             }
           : activePatient,
       };
+
+      try {
+        sessionStorage.setItem("netrascan_latest_result", JSON.stringify(result));
+        if (persistedRecord) {
+          sessionStorage.setItem("netrascan_latest_record", JSON.stringify(persistedRecord));
+        }
+      } catch (sessionErr) {
+        console.warn("Session storage notice:", sessionErr);
+      }
 
       if (result.status === "success") {
         setAnalysisResult(result);
