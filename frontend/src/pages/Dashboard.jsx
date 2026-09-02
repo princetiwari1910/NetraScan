@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchDashboardStats } from "../services/api";
+import { fetchDashboardStats, API_BASE_URL } from "../services/api";
 import Navbar from "../components/Navbar";
 
 import {
@@ -434,7 +434,7 @@ export default function Dashboard() {
                           </td>
                           <td style={{ padding: "14px 10px" }}>
                             <a
-                              href={`http://127.0.0.1:8000/screenings/${s.id}/report`}
+                              href={`${API_BASE_URL}/screenings/${s.id}/report`}
                               target="_blank"
                               rel="noreferrer"
                               style={{

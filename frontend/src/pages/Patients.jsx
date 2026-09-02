@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
-import { fetchPatients, createPatient, fetchPatientScreenings } from "../services/api";
+import { fetchPatients, createPatient, fetchPatientScreenings, API_BASE_URL } from "../services/api";
 import Navbar from "../components/Navbar";
 
 import {
@@ -475,7 +475,7 @@ export default function Patients() {
                           </div>
 
                           <a
-                            href={`http://127.0.0.1:8000/screenings/${s.id}/report`}
+                            href={`${API_BASE_URL}/screenings/${s.id}/report`}
                             target="_blank"
                             rel="noreferrer"
                             style={{ color: "#2563eb", fontSize: "12.5px", fontWeight: "700", textDecoration: "none", display: "flex", alignItems: "center", gap: "4px" }}

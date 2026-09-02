@@ -4,8 +4,9 @@
  * Supports JWT authentication, PostgreSQL Patient/Screening Database, and Live ONNX AI Inference.
  */
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"
+export const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://princetiwari1910--netrascan-backend-fastapi-app.modal.run"
 ).replace(/\/$/, "");
 
 // Helper to retrieve stored JWT token
