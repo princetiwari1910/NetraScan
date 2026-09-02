@@ -42,6 +42,7 @@ image = (
         "bcrypt>=4.1.0",
         "pyjwt>=2.8.0",
     )
+    .env({"NETRASCAN_CODE_VERSION": "20260903_v3"})
     .add_local_dir("backend", remote_path="/root/backend")
     .add_local_file(
         "ml-training/models/NetraScan_ResNet18.onnx",
@@ -83,6 +84,10 @@ def fastapi_app():
     os.environ["MODEL_PATH"] = str(target_model)
     os.environ["DATABASE_URL"] = "sqlite:////data/netrascan.db"
     os.makedirs("/data", exist_ok=True)
+    try:
+        data_volume.reload()
+    except Exception:
+        pass
 
     # Import the FastAPI application (initializes AIService singleton once)
     from main import app as web_app

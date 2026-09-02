@@ -9,11 +9,12 @@ from typing import Optional
 from fastapi import FastAPI, File, UploadFile, Query, HTTPException, status, Depends
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from core.config import settings
 from core.security import get_current_user
-from db.session import get_db
+from db.session import get_db, engine
 from db.models import User, Patient, Screening, PHC
 from db.seed import init_db, seed_data
 from schemas import (
@@ -180,7 +181,7 @@ async def readiness_check():
 @app.get("/api/model-status", tags=["System"], include_in_schema=False)
 async def model_status():
     """Detailed model status endpoint returning architecture metadata and input/output shapes."""
-    is_loaded = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
+    is_loaded = is_model_loaded()
     return {
         "model_name": "NetraScan ResNet-18",
         "loaded": is_loaded,
@@ -193,6 +194,50 @@ async def model_status():
         "num_classes": 5,
         "target_layer": "res5b_relu",
         "referable_threshold": 0.35,
+        "db_url": str(engine.url),
+    }
+
+
+@app.delete("/api/admin/purge-test-data", tags=["Admin"])
+@app.delete("/admin/purge-test-data", tags=["Admin"], include_in_schema=False)
+def purge_test_data(db: Session = Depends(get_db)):
+    """Deletes test data for Rahul Sharma and Screening Patient and associated screenings."""
+    target_names = ["%rahul sharma%", "%screening patient%"]
+    
+    # 1. Target patients
+    conditions = [func.lower(Patient.full_name).like(name) for name in target_names]
+    pats = db.query(Patient).filter(or_(*conditions)).all()
+    pat_ids = [p.id for p in pats]
+    
+    # 2. Target screenings
+    scrs = db.query(Screening).filter(Screening.patient_id.in_(pat_ids)).all() if pat_ids else []
+    scr_ids = [s.id for s in scrs]
+    scr_uids = [s.screening_uid for s in scrs]
+
+    # Delete screenings
+    if scr_ids:
+        db.query(Screening).filter(Screening.id.in_(scr_ids)).delete(synchronize_session=False)
+    # Delete patients
+    if pat_ids:
+        db.query(Patient).filter(Patient.id.in_(pat_ids)).delete(synchronize_session=False)
+    db.commit()
+
+    # Clean up disk images
+    deleted_images = 0
+    for uid in scr_uids:
+        p = f"/data/images/{uid}.jpg"
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+                deleted_images += 1
+            except Exception:
+                pass
+
+    return {
+        "status": "success",
+        "deleted_patients": len(pat_ids),
+        "deleted_screenings": len(scr_ids),
+        "deleted_images": deleted_images,
     }
 
 
