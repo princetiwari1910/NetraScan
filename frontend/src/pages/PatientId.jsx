@@ -1,4 +1,4 @@
-import "./PatientId.css";
+import "../styles/PatientId.css";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
