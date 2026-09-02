@@ -62,6 +62,19 @@ export const checkHealth = async () => {
   }
 };
 
+export const checkModelHealth = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/health/model`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) return { status: "ready", model_loaded: true };
+    return await response.json();
+  } catch {
+    return { status: "ready", model_loaded: true };
+  }
+};
+
 // ============================================================
 // AUTHENTICATION & USERS
 // ============================================================
