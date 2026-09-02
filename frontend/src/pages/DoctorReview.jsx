@@ -70,6 +70,10 @@ export default function DoctorReview() {
 
   useEffect(() => {
     loadScreenings();
+    const interval = setInterval(() => {
+      loadScreenings();
+    }, 12000);
+    return () => clearInterval(interval);
   }, [filterMode]);
 
   const handleSelectScreening = (s) => {
@@ -239,6 +243,28 @@ export default function DoctorReview() {
               }}
             >
               All Records
+            </button>
+            <button
+              type="button"
+              onClick={() => loadScreenings()}
+              title="Refresh Queue"
+              style={{
+                padding: "8px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: "700",
+                border: "none",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                background: "#f1f5f9",
+                color: "#475569",
+                marginLeft: "4px",
+              }}
+            >
+              <RotateCcw size={13} className={loading ? "spin" : ""} />
+              Refresh
             </button>
           </div>
         </div>

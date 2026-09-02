@@ -140,9 +140,10 @@ function Screening() {
       let currentPat = { ...patient };
 
       // If in new patient mode or patient.id is not a registered integer, register with backend immediately
-      if (!currentPat.id || typeof currentPat.id !== "number") {
+      if (mode === "new" || !currentPat.id || typeof currentPat.id !== "number") {
+        const patientName = currentPat.name?.trim() || currentPat.full_name?.trim() || "Screening Patient";
         const registered = await createPatient({
-          full_name: currentPat.name || currentPat.full_name || "Screening Patient",
+          full_name: patientName,
           age: parseInt(currentPat.age || "52", 10) || 52,
           gender: currentPat.gender || "Female",
           phone: currentPat.phone || "+91-9876543210",

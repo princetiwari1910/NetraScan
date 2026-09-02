@@ -18,16 +18,16 @@ export function ScreeningProvider({ children }) {
   });
 
   const [patient, setPatient] = useState({
-    id: 1,
-    patient_uid: "NS-PUN-000001",
-    full_name: "Rahul Sharma",
-    name: "Rahul Sharma",
-    age: "58",
-    gender: "Male",
-    phone: "+91-9823112233",
+    id: null,
+    patient_uid: "",
+    full_name: "",
+    name: "",
+    age: "52",
+    gender: "Female",
+    phone: "",
     diabetes_status: "Type 2",
-    diabetes_duration: "8 years",
-    medical_notes: "History of moderate hypertension. Regular metformin.",
+    diabetes_duration: "5 years",
+    medical_notes: "",
     location: "Primary Health Centre Pune",
     examined_eye: "OD - Right Eye",
   });
