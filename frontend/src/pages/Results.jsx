@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 
@@ -28,7 +28,57 @@ const ICDR_STAGES = [
 
 function Results() {
   const navigate = useNavigate();
-  const { patient, image, preview, analysisResult, startNewScreening } = useScreening();
+  const location = useLocation();
+  const {
+    patient: contextPatient,
+    image,
+    preview,
+    analysisResult: contextResult,
+    screeningRecord: contextRecord,
+    startNewScreening,
+  } = useScreening();
+
+  const analysisResult = location.state?.analysisResult || contextResult;
+  const screeningRecord = location.state?.screeningRecord || contextRecord;
+  const patient = location.state?.patient || contextPatient;
+
+  // Resolve authoritative patient values from live database record first
+  const patientName =
+    analysisResult?.patient_name ||
+    screeningRecord?.patient_name ||
+    patient?.full_name ||
+    patient?.name ||
+    "Patient";
+
+  const patientUid =
+    analysisResult?.patient_uid ||
+    screeningRecord?.patient_uid ||
+    patient?.patient_uid ||
+    (typeof patient?.id === "string" ? patient?.id : patient?.id ? `NS-PUN-${String(patient.id).padStart(6, '0')}` : "—");
+
+  const patientAge =
+    analysisResult?.patient_age ??
+    screeningRecord?.patient_age ??
+    patient?.age ??
+    "—";
+
+  const patientGender =
+    analysisResult?.patient_gender ||
+    screeningRecord?.patient_gender ||
+    patient?.gender ||
+    "—";
+
+  const examinedEye =
+    analysisResult?.examined_eye ||
+    screeningRecord?.examined_eye ||
+    patient?.examined_eye ||
+    "OD - Right Eye";
+
+  const screeningLocation =
+    analysisResult?.phc_name ||
+    screeningRecord?.phc_name ||
+    patient?.location ||
+    "Primary Health Centre Pune";
 
   const [activeTab, setActiveTab] = useState("overlay"); // "original" | "gradcam" | "overlay"
 
@@ -134,29 +184,29 @@ function Results() {
         <section className="result-patient-info">
           <div>
             <span>Patient Name</span>
-            <strong>{patient?.full_name || patient?.name || "Patient"}</strong>
+            <strong>{patientName}</strong>
           </div>
 
           <div>
             <span>Patient ID</span>
-            <strong>{patient?.patient_uid || (typeof patient?.id === "string" ? patient?.id : `NS-2026-${String(patient?.id || 1).padStart(3, '0')}`)}</strong>
+            <strong>{patientUid}</strong>
           </div>
 
           <div>
             <span>Age / Gender</span>
             <strong>
-              {patient?.age || "58"} yrs • {patient?.gender || "Male"}
+              {patientAge !== "—" ? `${patientAge} yrs` : "—"} • {patientGender}
             </strong>
           </div>
 
           <div>
             <span>Examined Eye</span>
-            <strong>{patient?.examined_eye || "OD - Right Eye"}</strong>
+            <strong>{examinedEye}</strong>
           </div>
 
           <div>
             <span>Screening Centre</span>
-            <strong>{patient?.location || "Primary Health Centre"}</strong>
+            <strong>{screeningLocation}</strong>
           </div>
         </section>
 

@@ -164,11 +164,15 @@ function Screening() {
         setPatient(currentPat);
       }
 
-      navigate("/analysis");
+      navigate("/analysis", {
+        state: {
+          patient: currentPat,
+          examined_eye: currentPat.examined_eye || "OD - Right Eye",
+        },
+      });
     } catch (patErr) {
-      console.warn("Patient registration pre-check:", patErr.message);
-      // Still navigate so Analysis can attempt resolution
-      navigate("/analysis");
+      console.error("Patient registration failed:", patErr);
+      setError(`Patient intake error: ${patErr.message || "Could not register patient record with server."}`);
     } finally {
       setSubmitting(false);
     }

@@ -103,19 +103,29 @@ export default function DoctorReview() {
   };
 
   const handleOpenReport = (s) => {
-    setPatient({
+    const patObj = {
       id: s.patient_id,
-      patient_uid: s.patient_uid || "NS-2026-001",
-      full_name: s.patient_name || "Patient",
-      name: s.patient_name || "Patient",
-      age: s.patient_age || 58,
-      gender: s.patient_gender || "Male",
+      patient_uid: s.patient_uid || `NS-PUN-${String(s.patient_id).padStart(6, '0')}`,
+      full_name: s.patient_name || `Patient #${s.patient_id}`,
+      name: s.patient_name || `Patient #${s.patient_id}`,
+      age: s.patient_age,
+      gender: s.patient_gender,
       examined_eye: s.examined_eye || "OD - Right Eye",
-      location: s.phc_name || "Primary Health Centre",
-    });
+      location: s.phc_name || "Primary Health Centre Pune",
+    };
+    setPatient(patObj);
 
-    setAnalysisResult({
+    const resObj = {
       status: "success",
+      screening_id: s.id,
+      screening_uid: s.screening_uid,
+      patient_id: s.patient_id,
+      patient_uid: s.patient_uid,
+      patient_name: s.patient_name,
+      patient_age: s.patient_age,
+      patient_gender: s.patient_gender,
+      phc_name: s.phc_name,
+      examined_eye: s.examined_eye,
       dr_grade: s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision : s.predicted_grade,
       severity_label: s.severity_label,
       referable: s.referable,
@@ -128,9 +138,10 @@ export default function DoctorReview() {
         threshold: 35.0,
         status: s.quality_status,
       },
-    });
+    };
+    setAnalysisResult(resObj);
 
-    navigate("/report");
+    navigate("/report", { state: { patient: patObj, analysisResult: resObj } });
   };
 
   return (
@@ -399,7 +410,10 @@ export default function DoctorReview() {
                       {selectedScreening.patient_name || `Patient #${selectedScreening.patient_id}`}
                     </h2>
                     <p style={{ color: "#6b7280", fontSize: "13px", margin: 0 }}>
-                      {selectedScreening.patient_age || 58} yrs • {selectedScreening.patient_gender || "Male"} • {selectedScreening.examined_eye} • {selectedScreening.phc_name || "PHC Centre"}
+                      {selectedScreening.patient_uid ? `${selectedScreening.patient_uid} • ` : ""}
+                      {selectedScreening.patient_age !== null && selectedScreening.patient_age !== undefined ? `${selectedScreening.patient_age} yrs • ` : ""}
+                      {selectedScreening.patient_gender ? `${selectedScreening.patient_gender} • ` : ""}
+                      {selectedScreening.examined_eye} • {selectedScreening.phc_name || "Primary Health Centre Pune"}
                     </p>
                   </div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import {
   analyzeRetinalImage,
@@ -33,8 +33,9 @@ import {
 
 function Analysis() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
-    patient,
+    patient: contextPatient,
     setPatient,
     image,
     preview,
@@ -42,6 +43,8 @@ function Analysis() {
     setScreeningRecord,
     user,
   } = useScreening();
+
+  const activePatient = location.state?.patient || contextPatient;
 
   const [activeStageIndex, setActiveStageIndex] = useState(1); // Stage 1: Fundus image validation
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -166,30 +169,28 @@ function Analysis() {
       let resolvedPatientId = null;
 
       // 1. Check if patient has numeric ID
-      if (patient?.id && typeof patient.id === "number" && !isNaN(patient.id)) {
-        resolvedPatientId = patient.id;
-      } else if (patient?.id && typeof patient.id === "string" && /^\d+$/.test(patient.id)) {
-        resolvedPatientId = parseInt(patient.id, 10);
+      if (activePatient?.id && typeof activePatient.id === "number" && !isNaN(activePatient.id)) {
+        resolvedPatientId = activePatient.id;
+      } else if (activePatient?.id && typeof activePatient.id === "string" && /^\d+$/.test(activePatient.id)) {
+        resolvedPatientId = parseInt(activePatient.id, 10);
       } else {
         // 2. Auto-register or look up patient
         try {
           const newPat = await createPatient({
-            full_name: patient?.full_name || patient?.name || "Screening Patient",
-            age: parseInt(patient?.age || "52", 10) || 52,
-            gender: patient?.gender || "Female",
-            phone: patient?.phone || "+91-9876543210",
-            diabetes_status: patient?.diabetes_status || "Type 2",
-            diabetes_duration: patient?.diabetes_duration || "5 years",
-            medical_notes: patient?.medical_notes || "Screening intake via NetraScan portal.",
+            full_name: activePatient?.full_name || activePatient?.name || "Screening Patient",
+            age: parseInt(activePatient?.age || "52", 10) || 52,
+            gender: activePatient?.gender || "Female",
+            phone: activePatient?.phone || "+91-9876543210",
+            diabetes_status: activePatient?.diabetes_status || "Type 2",
+            diabetes_duration: activePatient?.diabetes_duration || "5 years",
+            medical_notes: activePatient?.medical_notes || "Screening intake via NetraScan portal.",
           });
           resolvedPatientId = newPat.id;
-          setPatient((prev) => ({
-            ...prev,
-            id: newPat.id,
-            patient_uid: newPat.patient_uid,
-            full_name: newPat.full_name,
-            name: newPat.full_name,
-          }));
+          activePatient.id = newPat.id;
+          activePatient.patient_uid = newPat.patient_uid;
+          activePatient.full_name = newPat.full_name;
+          activePatient.name = newPat.full_name;
+          setPatient(activePatient);
         } catch (patLookupErr) {
           console.warn("[NetraScan] Patient resolution notice:", patLookupErr.message);
         }
@@ -215,23 +216,36 @@ function Analysis() {
         console.warn("[NetraScan] Pre-flight readiness probe notice:", probeErr.message);
       }
 
+      const examinedEye = activePatient?.examined_eye || "OD - Right Eye";
       console.log("[NetraScan] Dispatching AI screening request:", {
         patient_id: resolvedPatientId,
-        examined_eye: patient?.examined_eye || "OD - Right Eye",
+        examined_eye: examinedEye,
         file_name: image?.name,
         file_size: image?.size,
       });
 
       let result;
+      let persistedRecord = null;
 
       // Call persistent PostgreSQL screening endpoint (POST /api/screenings)
       if (resolvedPatientId && typeof resolvedPatientId === "number") {
         const record = await createScreening(
           resolvedPatientId,
-          patient?.examined_eye || "OD - Right Eye",
+          examinedEye,
           image
         );
+        persistedRecord = record;
         setScreeningRecord(record);
+        setPatient({
+          id: record.patient_id,
+          patient_uid: record.patient_uid,
+          full_name: record.patient_name,
+          name: record.patient_name,
+          age: record.patient_age,
+          gender: record.patient_gender,
+          location: record.phc_name,
+          examined_eye: record.examined_eye,
+        });
 
         // Convert to AnalysisSuccessResponse structure for Results page
         result = {
@@ -285,15 +299,32 @@ function Analysis() {
       setIsProcessing(false);
       isAnalyzing.current = false;
 
+      const navState = {
+        analysisResult: result,
+        screeningRecord: persistedRecord,
+        patient: persistedRecord
+          ? {
+              id: persistedRecord.patient_id,
+              patient_uid: persistedRecord.patient_uid,
+              full_name: persistedRecord.patient_name,
+              name: persistedRecord.patient_name,
+              age: persistedRecord.patient_age,
+              gender: persistedRecord.patient_gender,
+              location: persistedRecord.phc_name,
+              examined_eye: persistedRecord.examined_eye,
+            }
+          : activePatient,
+      };
+
       if (result.status === "success") {
         setAnalysisResult(result);
-        navigate("/results");
+        navigate("/results", { state: navState });
       } else if (result.status === "invalid_fundus") {
         setAnalysisResult(result);
-        navigate("/results");
+        navigate("/results", { state: navState });
       } else if (result.status === "recapture_required") {
         setAnalysisResult(result);
-        navigate("/results");
+        navigate("/results", { state: navState });
       } else {
         setErrorState({
           type: "UNKNOWN_ERROR",

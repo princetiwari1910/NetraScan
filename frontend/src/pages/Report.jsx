@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import {
   Eye,
@@ -27,13 +27,21 @@ const ICDR_STAGES = [
 ];
 
 function Report() {
-  const { patient, preview, analysisResult } = useScreening();
+  const location = useLocation();
+  const { patient: contextPatient, preview, analysisResult: contextResult } = useScreening();
 
-  const patientId = patient?.id || "NS-2026-001";
-  const age = patient?.age || "58";
-  const gender = patient?.gender || "Male";
-  const location = patient?.location || "District Tele-Ophthalmology Center";
-  const examinedEye = patient?.examined_eye || "OD - Right Eye";
+  const analysisResult = location.state?.analysisResult || contextResult;
+  const patient = location.state?.patient || contextPatient;
+
+  const patientName = analysisResult?.patient_name || patient?.full_name || patient?.name || "Patient";
+  const patientUid =
+    analysisResult?.patient_uid ||
+    patient?.patient_uid ||
+    (typeof patient?.id === "string" ? patient?.id : patient?.id ? `NS-PUN-${String(patient.id).padStart(6, '0')}` : "NS-PUN-000001");
+  const age = analysisResult?.patient_age ?? patient?.age ?? "—";
+  const gender = analysisResult?.patient_gender || patient?.gender || "—";
+  const reportLocation = analysisResult?.phc_name || patient?.location || "Primary Health Centre Pune";
+  const examinedEye = analysisResult?.examined_eye || patient?.examined_eye || "OD - Right Eye";
 
   const drGrade = analysisResult?.dr_grade ?? 0;
   const severityLabel = analysisResult?.severity_label || "No Diabetic Retinopathy";
@@ -167,14 +175,19 @@ function Report() {
 
           <div className="report-details-grid">
             <div>
-              <span>Patient ID</span>
-              <strong>{patientId}</strong>
+              <span>Patient Name</span>
+              <strong>{patientName}</strong>
+            </div>
+
+            <div>
+              <span>Patient ID / UID</span>
+              <strong>{patientUid}</strong>
             </div>
 
             <div>
               <span>Age / Gender</span>
               <strong>
-                {age} yrs • {gender}
+                {age !== "—" ? `${age} yrs` : "—"} • {gender}
               </strong>
             </div>
 
@@ -187,7 +200,7 @@ function Report() {
               <span>Screening Location</span>
               <strong>
                 <MapPin size={15} />
-                {location}
+                {reportLocation}
               </strong>
             </div>
 

@@ -22,7 +22,7 @@ import {
 function Home() {
   const navigate = useNavigate();
 
-  const { phc, logoutPhc, healthData } = useScreening();
+  const { phc, logoutPhc, healthData, startNewScreening } = useScreening();
 
   const [showPhcMenu, setShowPhcMenu] = useState(false);
 
@@ -36,6 +36,9 @@ function Home() {
       return;
     }
 
+    if (startNewScreening) {
+      startNewScreening();
+    }
     navigate("/screening");
   };
 
