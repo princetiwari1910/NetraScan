@@ -22,6 +22,7 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 
 from core.security import get_current_user, require_roles
 from db.models import Patient, PHC, Screening, User
@@ -193,7 +194,6 @@ def create_screening(
         # 5. Persist Screening Record & Original Retinal Image
         db_start = time.time()
         phc = patient.phc
-        screening_uid = generate_screening_uid(phc.code if phc else "GEN", db)
 
         # Convert original uploaded retinal photograph to self-contained JPEG data URI
         fundus_data_uri = None
@@ -203,43 +203,69 @@ def create_screening(
             b64_fundus = base64.b64encode(image_raw_bytes).decode("utf-8")
             fundus_mime = file.content_type or "image/jpeg"
             fundus_data_uri = f"data:{fundus_mime};base64,{b64_fundus}"
-
-            # Also persist image file to Modal volume /data/images
-            images_dir = "/data/images"
-            os.makedirs(images_dir, exist_ok=True)
-            with open(os.path.join(images_dir, f"{screening_uid}.jpg"), "wb") as f_img:
-                f_img.write(image_raw_bytes)
         except Exception as img_err:
-            logger.warning(f"Original image persistence notice: {img_err}")
+            logger.warning(f"Original image conversion notice: {img_err}")
+            image_raw_bytes = b""
 
-        screening = Screening(
-            screening_uid=screening_uid,
-            patient_id=patient.id,
-            phc_id=patient.phc_id,
-            performed_by=current_user.name,
-            image_path=fundus_data_uri,
-            examined_eye=examined_eye,
-            quality_status=quality_metric.status,
-            laplacian_variance=quality_metric.laplacian_variance,
-            predicted_grade=ai_res.dr_grade,
-            severity_label=ai_res.severity_label,
-            confidence=ai_res.confidence,
-            referable=ai_res.referable,
-            model_name=ai_res.model.name if ai_res.model else "NetraScan ResNet-18",
-            model_version=ai_res.model.version if ai_res.model else "1.0",
-            inference_time_ms=ai_res.model.inference_time_ms if ai_res.model else int(inf_duration_ms),
-            gradcam_reference=ai_res.gradcam_image,
-            ai_evidence=ai_res.evidence,
-            class_probabilities=ai_res.class_probabilities,
-            doctor_verified=False,
-            screened_at=datetime.utcnow(),
-        )
+        max_retries = 5
+        screening = None
+        for attempt in range(max_retries):
+            screening_uid = generate_screening_uid(phc.code if phc else "GEN", db)
 
-        db.add(screening)
-        db.commit()
-        db.refresh(screening)
+            # Persist image file to Modal volume /data/images
+            if image_raw_bytes:
+                try:
+                    images_dir = "/data/images"
+                    os.makedirs(images_dir, exist_ok=True)
+                    with open(os.path.join(images_dir, f"{screening_uid}.jpg"), "wb") as f_img:
+                        f_img.write(image_raw_bytes)
+                except Exception as img_err:
+                    logger.warning(f"Original image volume persistence notice: {img_err}")
+
+            screening = Screening(
+                screening_uid=screening_uid,
+                patient_id=patient.id,
+                phc_id=patient.phc_id,
+                performed_by=current_user.name,
+                image_path=fundus_data_uri,
+                examined_eye=examined_eye,
+                quality_status=quality_metric.status,
+                laplacian_variance=quality_metric.laplacian_variance,
+                predicted_grade=ai_res.dr_grade,
+                severity_label=ai_res.severity_label,
+                confidence=ai_res.confidence,
+                referable=ai_res.referable,
+                model_name=ai_res.model.name if ai_res.model else "NetraScan ResNet-18",
+                model_version=ai_res.model.version if ai_res.model else "1.0",
+                inference_time_ms=ai_res.model.inference_time_ms if ai_res.model else int(inf_duration_ms),
+                gradcam_reference=ai_res.gradcam_image,
+                ai_evidence=ai_res.evidence,
+                class_probabilities=ai_res.class_probabilities,
+                doctor_verified=False,
+                screened_at=datetime.utcnow(),
+            )
+
+            try:
+                db.add(screening)
+                db.commit()
+                db.refresh(screening)
+                break
+            except IntegrityError:
+                db.rollback()
+                if attempt == max_retries - 1:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Could not generate unique screening identifier due to concurrent intake. Please retry."
+                    )
+            except Exception as e:
+                db.rollback()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Could not persist screening record: {str(e)}"
+                )
+
         total_req_ms = (time.time() - req_start) * 1000
-        logger.info(f"[SCREENING COMPLETE] Screening {screening_uid} persisted and returned in {total_req_ms:.1f}ms total.")
+        logger.info(f"[SCREENING COMPLETE] Screening {screening.screening_uid} persisted and returned in {total_req_ms:.1f}ms total.")
 
         return map_screening_to_response(screening, include_images=True)
 

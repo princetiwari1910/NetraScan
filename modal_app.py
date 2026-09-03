@@ -42,7 +42,7 @@ image = (
         "bcrypt>=4.1.0",
         "pyjwt>=2.8.0",
     )
-    .env({"NETRASCAN_CODE_VERSION": "20260903_v4"})
+    .env({"NETRASCAN_CODE_VERSION": "20260903_v5"})
     .add_local_dir("backend", remote_path="/root/backend")
     .add_local_file(
         "ml-training/models/NetraScan_ResNet18.onnx",
@@ -50,11 +50,17 @@ image = (
     )
 )
 
+# Secure environment secret forwarding for production
+secrets = []
+if os.getenv("JWT_SECRET"):
+    secrets.append(modal.Secret.from_dict({"JWT_SECRET": os.environ["JWT_SECRET"]}))
+
 # -----------------------------------------------------------------------------
 # 3. ASGI Web Function Serving FastAPI
 # -----------------------------------------------------------------------------
 @app.function(
     image=image,
+    secrets=secrets,
     volumes={
         "/models": models_volume,
         "/data": data_volume,

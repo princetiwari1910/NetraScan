@@ -2,6 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from db.session import get_db
 from db.models import Patient, Screening, PHC, User
@@ -68,7 +69,7 @@ def create_patient(
 ):
     """
     Registers a new patient within the authenticated user's assigned PHC.
-    Automatically assigns unique Patient UID (e.g. NS-PUN-000123).
+    Automatically assigns unique Patient UID (e.g. NS-PUN-000123) with concurrency collision safety.
     """
     # Enforce PHC assignment based on authenticated user (prevent cross-tenant injection)
     assigned_phc_id = current_user.phc_id if current_user.role != "SUPER_ADMIN" else (payload.phc_id or 1)
@@ -82,34 +83,42 @@ def create_patient(
     if not phc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assigned PHC does not exist.")
 
-    patient_uid = generate_patient_uid(phc.code, db)
+    max_retries = 5
+    for attempt in range(max_retries):
+        patient_uid = generate_patient_uid(phc.code, db)
 
-    try:
-        patient = Patient(
-            patient_uid=patient_uid,
-            phc_id=assigned_phc_id,
-            full_name=payload.full_name,
-            date_of_birth=payload.date_of_birth,
-            age=payload.age,
-            gender=payload.gender,
-            phone=payload.phone,
-            email=payload.email,
-            address=payload.address,
-            diabetes_status=payload.diabetes_status,
-            diabetes_duration=payload.diabetes_duration,
-            medical_notes=payload.medical_notes,
-        )
-        db.add(patient)
-        db.commit()
-        db.refresh(patient)
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Could not register patient record: {str(e)}"
-        )
-
-    return populate_patient_summary(patient)
+        try:
+            patient = Patient(
+                patient_uid=patient_uid,
+                phc_id=assigned_phc_id,
+                full_name=payload.full_name,
+                date_of_birth=payload.date_of_birth,
+                age=payload.age,
+                gender=payload.gender,
+                phone=payload.phone,
+                email=payload.email,
+                address=payload.address,
+                diabetes_status=payload.diabetes_status,
+                diabetes_duration=payload.diabetes_duration,
+                medical_notes=payload.medical_notes,
+            )
+            db.add(patient)
+            db.commit()
+            db.refresh(patient)
+            return populate_patient_summary(patient)
+        except IntegrityError:
+            db.rollback()
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Could not generate unique patient identifier due to concurrent intake. Please retry."
+                )
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Could not register patient record: {str(e)}"
+            )
 
 
 @router.get("", response_model=List[PatientResponse])
