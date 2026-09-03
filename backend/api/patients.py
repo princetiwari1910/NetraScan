@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
-from db.session import get_db
+from db.session import get_db, sync_volume
 from db.models import Patient, Screening, PHC, User
 from core.security import get_current_user
 from schemas import (
@@ -105,6 +105,7 @@ def create_patient(
             db.add(patient)
             db.commit()
             db.refresh(patient)
+            sync_volume()
             return populate_patient_summary(patient)
         except IntegrityError:
             db.rollback()

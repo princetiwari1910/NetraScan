@@ -25,3 +25,36 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+_volume_sync_fn = None
+_volume_reload_fn = None
+
+
+def register_volume_hooks(sync_fn=None, reload_fn=None):
+    """Registers persistence hooks for cloud-mounted volumes."""
+    global _volume_sync_fn, _volume_reload_fn
+    if sync_fn:
+        _volume_sync_fn = sync_fn
+    if reload_fn:
+        _volume_reload_fn = reload_fn
+
+
+def sync_volume():
+    """Flushes volume commits to persistent storage."""
+    global _volume_sync_fn
+    if _volume_sync_fn:
+        try:
+            _volume_sync_fn()
+        except Exception:
+            pass
+
+
+def reload_volume():
+    """Reloads volume cache from persistent storage."""
+    global _volume_reload_fn
+    if _volume_reload_fn:
+        try:
+            _volume_reload_fn()
+        except Exception:
+            pass

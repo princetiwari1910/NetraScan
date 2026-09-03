@@ -42,7 +42,7 @@ image = (
         "bcrypt>=4.1.0",
         "pyjwt>=2.8.0",
     )
-    .env({"NETRASCAN_CODE_VERSION": "20260903_v5"})
+    .env({"NETRASCAN_CODE_VERSION": "20260903_v6"})
     .add_local_dir("backend", remote_path="/root/backend")
     .add_local_file(
         "ml-training/models/NetraScan_ResNet18.onnx",
@@ -69,6 +69,7 @@ if os.getenv("JWT_SECRET"):
     memory=2048,  # 2048 MiB memory
     timeout=120,
 )
+@modal.concurrent(max_inputs=100)
 @modal.asgi_app()
 def fastapi_app():
     import shutil
@@ -94,6 +95,13 @@ def fastapi_app():
         data_volume.reload()
     except Exception:
         pass
+
+    # Register volume sync hooks with backend session manager
+    from db.session import register_volume_hooks
+    register_volume_hooks(
+        sync_fn=lambda: data_volume.commit(),
+        reload_fn=lambda: data_volume.reload(),
+    )
 
     # Import the FastAPI application (initializes AIService singleton once)
     from main import app as web_app

@@ -26,7 +26,7 @@ from sqlalchemy.exc import IntegrityError
 
 from core.security import get_current_user, require_roles
 from db.models import Patient, PHC, Screening, User
-from db.session import get_db
+from db.session import get_db, sync_volume, reload_volume
 from schemas import (
     DoctorVerifyRequest,
     QualityMetric,
@@ -123,6 +123,10 @@ def create_screening(
     """
     # 1. Verify Patient Tenancy
     patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        reload_volume()
+        patient = db.query(Patient).filter(Patient.id == patient_id).first()
+
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -249,6 +253,7 @@ def create_screening(
                 db.add(screening)
                 db.commit()
                 db.refresh(screening)
+                sync_volume()
                 break
             except IntegrityError:
                 db.rollback()
