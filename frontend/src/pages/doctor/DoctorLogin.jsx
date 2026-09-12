@@ -16,8 +16,8 @@ function DoctorLogin() {
   const navigate = useNavigate();
   const { loginUserContext } = useScreening();
 
-  const [doctorId, setDoctorId] = useState("");
-  const [password, setPassword] = useState("");
+  const [doctorId, setDoctorId] = useState("doctor.pune@netrascan.org");
+  const [password, setPassword] = useState("Doctor@Pune123");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -281,7 +281,7 @@ function DoctorLogin() {
                   <Lock size={16} />
 
                   <input
-                    type="password"
+                    type="text"
                     required
                     placeholder="Enter password"
                     value={password}

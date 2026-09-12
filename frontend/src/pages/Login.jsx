@@ -17,8 +17,8 @@ function Login() {
   const navigate = useNavigate();
   const { loginPhc, loginUserContext } = useScreening();
 
-  const [phcId, setPhcId] = useState("");
-  const [password, setPassword] = useState("");
+  const [phcId, setPhcId] = useState("PHC-PUNE-001");
+  const [password, setPassword] = useState("NetraScan@123");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -177,7 +177,7 @@ function Login() {
                 <div className="login-input-wrapper">
                   <Lock size={16} />
                   <input
-                    type="password"
+                    type="text"
                     required
                     placeholder="Enter password"
                     value={password}
