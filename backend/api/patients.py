@@ -13,6 +13,8 @@ from schemas import (
     PatientUpdateRequest,
     ScreeningResponse,
 )
+from services import storage_service
+
 
 router = APIRouter(prefix="/patients", tags=["Patient Management"])
 
@@ -273,8 +275,9 @@ def get_patient_screening_history(
                 model_name=s.model_name,
                 model_version=s.model_version,
                 inference_time_ms=s.inference_time_ms,
-                gradcam_reference=s.gradcam_reference,
+                gradcam_reference=storage_service.resolve_image_url(s.gradcam_reference),
                 ai_evidence=s.ai_evidence,
+
                 class_probabilities=s.class_probabilities,
                 doctor_verified=s.doctor_verified,
                 doctor_id=s.doctor_id,

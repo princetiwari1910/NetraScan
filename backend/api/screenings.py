@@ -41,6 +41,7 @@ from services import (
     ReportService,
     assess_basic_integrity,
     validate_file,
+    storage_service,
 )
 
 router = APIRouter(prefix="/screenings", tags=["Screenings & AI Triage"])
@@ -62,12 +63,13 @@ def generate_screening_uid(phc_code: str, db: Session) -> str:
 
 
 def map_screening_to_response(s: Screening, include_images: bool = True) -> ScreeningResponse:
-    """Maps SQLAlchemy Screening record to Pydantic ScreeningResponse model."""
+    """Maps SQLAlchemy Screening record to Pydantic ScreeningResponse model with signed URLs."""
     patient = s.patient
     phc = s.phc
-    fundus_img = s.image_path if include_images else None
+    fundus_img = storage_service.resolve_image_url(s.image_path) if include_images else None
     # For listing without heavy images, keep gradcam if small or None
-    gradcam_img = s.gradcam_reference if include_images else None
+    gradcam_img = storage_service.resolve_image_url(s.gradcam_reference) if include_images else None
+
 
     return ScreeningResponse(
         id=s.id,
@@ -354,6 +356,7 @@ def get_screening_image(
             detail="Original retinal image not found for this screening."
         )
 
+    # 1. Base64 Data URI
     if screening.image_path.startswith("data:"):
         try:
             header, encoded = screening.image_path.split(",", 1)
@@ -362,6 +365,19 @@ def get_screening_image(
             return Response(content=image_bytes, media_type=mime)
         except Exception:
             raise HTTPException(status_code=500, detail="Error decoding stored retinal image")
+
+    # 2. Supabase Storage Object Path
+    if storage_service.is_storage_path(screening.image_path):
+        dl = storage_service.download_by_reference(screening.image_path)
+        if dl:
+            img_bytes, mime_type = dl
+            return Response(content=img_bytes, media_type=mime_type)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image object not found in Supabase Storage."
+        )
+
+    # 3. Local disk fallback
     elif os.path.exists(screening.image_path):
         with open(screening.image_path, "rb") as f:
             return Response(content=f.read(), media_type="image/jpeg")
@@ -452,6 +468,9 @@ def get_screening_clinical_report(
 
     verified_grade = screening.doctor_decision if screening.doctor_verified and screening.doctor_decision is not None else screening.predicted_grade
 
+    # Resolve Grad-CAM signed URL for private bucket access or pass base64 through
+    gradcam_resolved = storage_service.resolve_image_url(screening.gradcam_reference) or ""
+
     analysis_res_obj = AnalysisSuccessResponse(
         status="success",
         dr_grade=verified_grade,
@@ -459,7 +478,7 @@ def get_screening_clinical_report(
         referable=screening.referable,
         confidence=screening.confidence,
         class_probabilities=screening.class_probabilities or {},
-        gradcam_image=screening.gradcam_reference or "",
+        gradcam_image=gradcam_resolved,
         evidence=screening.ai_evidence or ["Standard fundus evaluation completed."],
         quality_metric=QualityMetric(
             laplacian_variance=screening.laplacian_variance,
@@ -482,6 +501,7 @@ def get_screening_clinical_report(
         analysis_result=analysis_res_obj,
         report_id=screening.screening_uid,
     )
+
 
     if download:
         return Response(

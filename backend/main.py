@@ -62,7 +62,9 @@ def get_service():
         return None
 
 
+ai_service = get_service()
 ANALYSIS_TIMEOUT_SECONDS = settings.ANALYSIS_TIMEOUT_SECONDS
+
 
 # -----------------------------------------------------------------------------
 # FastAPI App Initialization & CORS

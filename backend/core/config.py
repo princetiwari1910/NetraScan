@@ -1,11 +1,18 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+# Load local environment files
+load_dotenv(BASE_DIR / "backend" / ".env")
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+load_dotenv()
+
 
 class Settings(BaseSettings):
+
     PROJECT_NAME: str = "NetraScan AI Clinical DR Screening Platform"
     API_V1_STR: str = "/api"
     
@@ -16,8 +23,9 @@ class Settings(BaseSettings):
     )
     
     # JWT & Security
-    JWT_SECRET: str = os.getenv("JWT_SECRET", "netrascan_clinical_jwt_secret_key_2026_secure")
+    JWT_SECRET: str = os.getenv("JWT_SECRET") or os.getenv("JWT_SECRET_KEY") or "netrascan_clinical_jwt_secret_key_2026_secure"
     JWT_ALGORITHM: str = "HS256"
+
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
     # AI Model Settings
@@ -29,8 +37,13 @@ class Settings(BaseSettings):
     BLUR_THRESHOLD: float = float(os.getenv("BLUR_THRESHOLD", "35.0"))
     ANALYSIS_TIMEOUT_SECONDS: float = float(os.getenv("ANALYSIS_TIMEOUT_SECONDS", "5.0"))
 
+    # Supabase Cloud Storage
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_SECRET_KEY: str = os.getenv("SUPABASE_SECRET_KEY", "")
+
     class Config:
         case_sensitive = True
 
 
 settings = Settings()
+

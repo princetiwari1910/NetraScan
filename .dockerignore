@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vercel
+node_modules
+frontend
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env*
+.DS_Store
+scratch

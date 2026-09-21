@@ -6,7 +6,7 @@
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
-  "https://princetiwari1910--netrascan-backend-fastapi-app.modal.run"
+  "https://ne-ef6c85ddd0fc44bfbd12502b61eee466.ecs.ap-south-1.on.aws"
 ).replace(/\/$/, "");
 
 // Helper to retrieve stored JWT token
