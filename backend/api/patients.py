@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
@@ -135,7 +135,10 @@ def list_patients(
     """
     Lists registered patients with strict PHC tenant data isolation.
     """
-    query = db.query(Patient)
+    query = db.query(Patient).options(
+        joinedload(Patient.phc),
+        selectinload(Patient.screenings)
+    )
 
     if current_user.role != "SUPER_ADMIN":
         query = query.filter(Patient.phc_id == current_user.phc_id)
@@ -154,11 +157,18 @@ def search_patients(
 ):
     """Searches patients by name, UID, or phone number within user's PHC scope."""
     term = f"%{q.strip()}%"
-    query = db.query(Patient).filter(
-        or_(
-            Patient.full_name.ilike(term),
-            Patient.patient_uid.ilike(term),
-            Patient.phone.ilike(term)
+    query = (
+        db.query(Patient)
+        .options(
+            joinedload(Patient.phc),
+            selectinload(Patient.screenings)
+        )
+        .filter(
+            or_(
+                Patient.full_name.ilike(term),
+                Patient.patient_uid.ilike(term),
+                Patient.phone.ilike(term)
+            )
         )
     )
 
@@ -176,7 +186,15 @@ def get_patient(
     current_user: User = Depends(get_current_user)
 ):
     """Retrieves patient details by ID (enforcing PHC tenant isolation)."""
-    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    patient = (
+        db.query(Patient)
+        .options(
+            joinedload(Patient.phc),
+            selectinload(Patient.screenings)
+        )
+        .filter(Patient.id == patient_id)
+        .first()
+    )
     if not patient:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
