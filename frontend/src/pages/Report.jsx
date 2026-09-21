@@ -17,6 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
+import { API_BASE_URL } from "../services/api";
 
 const ICDR_STAGES = [
   { grade: 0, label: "No DR", color: "#10B981" },
@@ -79,7 +80,7 @@ function Report() {
     analysisResult?.image_path ||
     preview ||
     savedPreview ||
-    (analysisResult?.screening_id ? `https://princetiwari1910--netrascan-backend-fastapi-app.modal.run/api/screenings/${analysisResult.screening_id}/image` : null);
+    (analysisResult?.screening_id ? `${API_BASE_URL}/api/screenings/${analysisResult.screening_id}/image` : null);
 
   const gradcamUrl = analysisResult?.gradcam_image || "";
   const evidence = analysisResult?.evidence || [
