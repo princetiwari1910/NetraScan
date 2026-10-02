@@ -47,6 +47,8 @@ export default function DoctorReview() {
       let data;
       if (filterMode === "pending") {
         data = await fetchScreenings(false);
+      } else if (filterMode === "verified") {
+        data = await fetchScreenings(true);
       } else {
         data = await fetchScreenings(null);
       }
@@ -63,7 +65,13 @@ export default function DoctorReview() {
             return data[0];
           }
           const stillExists = data.find((item) => item.id === prev.id);
-          if (stillExists) return prev;
+          if (stillExists) {
+            return {
+              ...stillExists,
+              fundus_image: stillExists.fundus_image || prev.fundus_image,
+              gradcam_reference: stillExists.gradcam_reference || prev.gradcam_reference,
+            };
+          }
           handleSelectScreening(data[0]);
           return data[0];
         });
@@ -81,7 +89,7 @@ export default function DoctorReview() {
     loadScreenings(false);
     const interval = setInterval(() => {
       loadScreenings(true);
-    }, 20000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [filterMode]);
 
@@ -111,7 +119,15 @@ export default function DoctorReview() {
 
     setSubmitting(true);
     try {
-      await verifyScreening(selectedScreening.id, verifiedGrade, doctorNotes);
+      const result = await verifyScreening(selectedScreening.id, verifiedGrade, doctorNotes);
+      setSelectedScreening((prev) => (prev ? {
+        ...prev,
+        ...result,
+        doctor_verified: true,
+        doctor_decision: verifiedGrade,
+        doctor_notes: doctorNotes,
+        doctor_name: user?.name || "Dr. Anjali Deshmukh"
+      } : prev));
       setSuccessMessage("Screening successfully verified and certified by Ophthalmologist!");
       await loadScreenings();
     } catch (err) {
@@ -282,6 +298,23 @@ export default function DoctorReview() {
               }}
             >
               Referable Cases
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode("verified")}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                fontWeight: "700",
+                border: "none",
+                cursor: "pointer",
+                transition: "all 0.15s ease",
+                background: filterMode === "verified" ? "#059669" : "transparent",
+                color: filterMode === "verified" ? "#ffffff" : "#64748b",
+              }}
+            >
+              Verified Cases
             </button>
             <button
               type="button"
@@ -518,9 +551,22 @@ export default function DoctorReview() {
                           src={selectedScreening.gradcam_reference}
                           alt="Grad-CAM"
                           style={{ maxHeight: "200px", maxWidth: "100%", objectFit: "contain" }}
+                          onError={(e) => {
+                            if (!e.currentTarget.dataset.retried) {
+                              e.currentTarget.dataset.retried = "true";
+                              e.currentTarget.src = `${API_BASE_URL}/screenings/${selectedScreening.id}/gradcam`;
+                            }
+                          }}
                         />
                       ) : (
-                        <span style={{ color: "#94a3b8", fontSize: "12px" }}>No Heatmap Image</span>
+                        <img
+                          src={`${API_BASE_URL}/screenings/${selectedScreening.id}/gradcam`}
+                          alt="Grad-CAM"
+                          style={{ maxHeight: "200px", maxWidth: "100%", objectFit: "contain" }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
                       )}
                     </div>
                   </div>

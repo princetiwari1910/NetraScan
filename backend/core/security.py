@@ -106,6 +106,31 @@ def get_current_user(
     return user
 
 
+def get_optional_current_user(
+    auth: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """
+    FastAPI dependency that extracts authenticated user if token is present,
+    returning None if unauthenticated without raising 401.
+    """
+    if not auth or not auth.credentials:
+        return None
+
+    try:
+        payload = decode_access_token(auth.credentials)
+        user_id = payload.get("sub") or payload.get("user_id")
+        if not user_id:
+            return None
+
+        user = db.query(User).filter(User.id == int(user_id)).first()
+        if not user or not user.is_active:
+            return None
+        return user
+    except Exception:
+        return None
+
+
 def require_roles(*allowed_roles: str):
     """Decorator / dependency ensuring user has one of the required roles."""
     def role_checker(current_user: User = Depends(get_current_user)) -> User:

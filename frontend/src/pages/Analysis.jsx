@@ -306,9 +306,13 @@ function Analysis() {
             threshold: 35.0,
             status: record.quality_status,
           },
-          model: {
+          lesions: record.lesions || null,
+          model: record.model || {
             name: record.model_name || "NetraScan ResNet-18",
             version: record.model_version || "1.0",
+            artifact: "NetraScan_ResNet18.onnx",
+            architecture: "ResNet-18",
+            sha256: "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
             runtime: "onnxruntime",
             target_layer: "res5b_relu",
             referable_threshold: 0.35,

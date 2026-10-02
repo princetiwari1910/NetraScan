@@ -52,23 +52,34 @@ export default function Patients() {
   const [submitting, setSubmitting] = useState(false);
 
   // Load patients from database on mount & on search
-  const loadPatients = async (query = "") => {
-    setLoading(true);
+  const loadPatients = async (query = "", isBackground = false) => {
+    if (!isBackground) setLoading(true);
     try {
       const data = await fetchPatients(query);
       setPatients(data);
-      if (data.length > 0 && !selectedPatient) {
-        handleSelectPatient(data[0]);
+      if (data.length > 0) {
+        setSelectedPatient((prev) => {
+          if (!prev) {
+            handleSelectPatient(data[0]);
+            return data[0];
+          }
+          const updated = data.find((item) => item.id === prev.id) || data[0];
+          return updated;
+        });
       }
     } catch (err) {
       console.error("Failed to load patients:", err);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadPatients(searchQuery);
+    loadPatients(searchQuery, false);
+    const interval = setInterval(() => {
+      loadPatients(searchQuery, true);
+    }, 10000);
+    return () => clearInterval(interval);
   }, [searchQuery]);
 
   const handleSelectPatient = async (p) => {
@@ -76,7 +87,7 @@ export default function Patients() {
     setHistoryLoading(true);
     try {
       const history = await fetchPatientScreenings(p.id);
-      setScreeningsHistory(history);
+      setScreeningsHistory(history || []);
     } catch (err) {
       console.error("Failed to load screenings history:", err);
       setScreeningsHistory([]);
@@ -84,6 +95,15 @@ export default function Patients() {
       setHistoryLoading(false);
     }
   };
+
+  // Re-fetch screening history when selectedPatient changes
+  useEffect(() => {
+    if (selectedPatient?.id) {
+      fetchPatientScreenings(selectedPatient.id)
+        .then((history) => setScreeningsHistory(history || []))
+        .catch((err) => console.error("History fetch error:", err));
+    }
+  }, [selectedPatient?.id]);
 
   const handleStartScreeningForPatient = (p) => {
     startNewScreening(p);
@@ -276,29 +296,54 @@ export default function Patients() {
                           <strong style={{ fontSize: "15px", color: isSelected ? "#2563eb" : "#1a1a1e", fontWeight: "700" }}>{p.full_name}</strong>
                           <span style={{ fontSize: "12px", color: "#64748b", marginLeft: "8px", fontFamily: "monospace" }}>{p.patient_uid}</span>
                         </div>
-                        <span
-                          style={{
-                            fontSize: "10px",
-                            fontWeight: "800",
-                            padding: "3px 8px",
-                            borderRadius: "8px",
-                            letterSpacing: "0.04em",
-                            backgroundColor:
-                              p.latest_referable === true
-                                ? "#fff1f2"
-                                : p.latest_referable === false
-                                ? "#ecfdf5"
-                                : "#f1f5f9",
-                            color:
-                              p.latest_referable === true
-                                ? "#e11d48"
-                                : p.latest_referable === false
-                                ? "#047857"
-                                : "#64748b",
-                          }}
-                        >
-                          {p.latest_referable === true ? "REFERABLE" : p.latest_referable === false ? "NON-REFERABLE" : "NO SCREENINGS"}
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          {p.latest_referable === true ? (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: "800",
+                                padding: "3px 8px",
+                                borderRadius: "8px",
+                                letterSpacing: "0.04em",
+                                backgroundColor: "#fee2e2",
+                                color: "#b91c1c",
+                                border: "1px solid #fca5a5",
+                              }}
+                            >
+                              REFERABLE
+                            </span>
+                          ) : p.latest_referable === false ? (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: "800",
+                                padding: "3px 8px",
+                                borderRadius: "8px",
+                                letterSpacing: "0.04em",
+                                backgroundColor: "#d1fae5",
+                                color: "#065f46",
+                                border: "1px solid #6ee7b7",
+                              }}
+                            >
+                              NON-REFERABLE
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                fontWeight: "800",
+                                padding: "3px 8px",
+                                borderRadius: "8px",
+                                letterSpacing: "0.04em",
+                                backgroundColor: "#f1f5f9",
+                                color: "#64748b",
+                                border: "1px solid #e2e8f0",
+                              }}
+                            >
+                              NO SCREENINGS
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div style={{ display: "flex", gap: "14px", fontSize: "12.5px", color: "#64748b" }}>
@@ -377,7 +422,7 @@ export default function Patients() {
                 <div style={{ backgroundColor: "#f8fafc", border: "1px solid #e2e8f0", padding: "12px 16px", borderRadius: "10px" }}>
                   <span style={{ fontSize: "11px", color: "#64748b", fontWeight: "700", textTransform: "uppercase" }}>Registered PHC</span>
                   <div style={{ fontWeight: "700", color: "#1a1a1e", marginTop: "2px", fontSize: "13.5px" }}>
-                    {selectedPatient.phc_name || "Primary Health Centre"}
+                    {selectedPatient.phc_name || "Primary Health Centre Pune"}
                   </div>
                 </div>
               </div>
@@ -422,69 +467,138 @@ export default function Patients() {
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    {screeningsHistory.map((s) => (
-                      <div
-                        key={s.id}
-                        style={{
-                          backgroundColor: "#fdfbf7",
-                          border: "1px solid #e5e7eb",
-                          borderRadius: "12px",
-                          padding: "16px",
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                          <div>
-                            <strong style={{ fontSize: "14.5px", color: "#1a1a1e", fontWeight: "700" }}>Grade {s.predicted_grade}: {s.severity_label}</strong>
-                            <span style={{ fontSize: "12px", color: "#64748b", marginLeft: "10px" }}>
-                              {new Date(s.screened_at).toLocaleDateString()} at {new Date(s.screened_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          </div>
-                          <span
-                            style={{
-                              fontSize: "11px",
-                              fontWeight: "800",
-                              padding: "3px 10px",
-                              borderRadius: "8px",
-                              letterSpacing: "0.04em",
-                              backgroundColor: s.referable ? "#fff1f2" : "#ecfdf5",
-                              color: s.referable ? "#e11d48" : "#047857",
-                            }}
-                          >
-                            {s.referable ? "Referable DR (≥ 0.35)" : "Non-Referable"}
-                          </span>
-                        </div>
-
-                        <div style={{ display: "flex", gap: "16px", fontSize: "12.5px", color: "#64748b", marginBottom: "8px" }}>
-                          <span>Confidence: <strong style={{ color: "#2563eb", fontFamily: "monospace" }}>{(s.confidence * 100).toFixed(1)}%</strong></span>
-                          <span>Eye: <strong style={{ color: "#1a1a1e" }}>{s.examined_eye}</strong></span>
-                          <span>Quality: <strong style={{ color: "#1a1a1e" }}>{s.quality_status} (Var: {s.laplacian_variance})</strong></span>
-                        </div>
-
-                        {/* DOCTOR VERIFICATION STATUS */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #edf0f5", paddingTop: "10px", marginTop: "8px" }}>
-                          <div style={{ fontSize: "12px" }}>
-                            {s.doctor_verified ? (
-                              <span style={{ color: "#047857", display: "flex", alignItems: "center", gap: "4px", fontWeight: "700" }}>
-                                <CheckCircle2 size={14} /> Doctor Verified by {s.doctor_name || "Specialist"} (Grade {s.doctor_decision})
+                    {screeningsHistory.map((s) => {
+                      const displayGrade = s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision : s.predicted_grade;
+                      const isReferable = s.doctor_verified && s.doctor_decision !== null ? s.doctor_decision >= 2 : s.referable;
+                      return (
+                        <div
+                          key={s.id}
+                          style={{
+                            backgroundColor: "#ffffff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "14px",
+                            padding: "18px",
+                            boxShadow: "0 2px 6px rgba(0, 0, 0, 0.03)",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                            <div>
+                              <strong style={{ fontSize: "15px", color: "#1a1a1e", fontWeight: "800" }}>
+                                Grade {displayGrade}: {s.severity_label}
+                              </strong>
+                              <span style={{ fontSize: "12px", color: "#64748b", marginLeft: "10px" }}>
+                                {new Date(s.screened_at || s.created_at).toLocaleDateString()} at {new Date(s.screened_at || s.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                               </span>
-                            ) : (
-                              <span style={{ color: "#d97706", display: "flex", alignItems: "center", gap: "4px", fontWeight: "700" }}>
-                                <Clock size={14} /> Doctor Verification Pending
-                              </span>
-                            )}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                              {isReferable ? (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: "800",
+                                    padding: "4px 10px",
+                                    borderRadius: "8px",
+                                    letterSpacing: "0.04em",
+                                    backgroundColor: "#fee2e2",
+                                    color: "#b91c1c",
+                                    border: "1px solid #fca5a5",
+                                  }}
+                                >
+                                  REFERABLE DR (≥ 0.35)
+                                </span>
+                              ) : (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: "800",
+                                    padding: "4px 10px",
+                                    borderRadius: "8px",
+                                    letterSpacing: "0.04em",
+                                    backgroundColor: "#d1fae5",
+                                    color: "#065f46",
+                                    border: "1px solid #6ee7b7",
+                                  }}
+                                >
+                                  NON-REFERABLE (ROUTINE CARE)
+                                </span>
+                              )}
+
+                              {s.doctor_verified && (
+                                <span
+                                  style={{
+                                    fontSize: "11px",
+                                    fontWeight: "800",
+                                    padding: "4px 10px",
+                                    borderRadius: "8px",
+                                    backgroundColor: "#ecfdf5",
+                                    color: "#059669",
+                                    border: "1px solid #a7f3d0",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                  }}
+                                >
+                                  <CheckCircle2 size={12} /> VERIFIED
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <a
-                            href={`${API_BASE_URL}/screenings/${s.id}/report`}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{ color: "#2563eb", fontSize: "12.5px", fontWeight: "700", textDecoration: "none", display: "flex", alignItems: "center", gap: "4px" }}
-                          >
-                            View Clinical Report <ExternalLink size={12} />
-                          </a>
+                          <div style={{ display: "flex", gap: "16px", fontSize: "12.5px", color: "#64748b", marginBottom: "10px", flexWrap: "wrap" }}>
+                            <span>AI Confidence: <strong style={{ color: "#000000", fontFamily: "monospace" }}>{(s.confidence * 100).toFixed(1)}%</strong></span>
+                            <span>•</span>
+                            <span>Eye: <strong style={{ color: "#000000" }}>{s.examined_eye}</strong></span>
+                            <span>•</span>
+                            <span>Quality: <strong style={{ color: "#000000" }}>{s.quality_status}</strong></span>
+                            <span>•</span>
+                            <span>Screening ID: <strong style={{ color: "#2563eb", fontFamily: "monospace" }}>{s.screening_uid}</strong></span>
+                          </div>
+
+                          {/* DOCTOR VERIFICATION STATUS & NOTES */}
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f1f5f9", paddingTop: "12px", marginTop: "10px", flexWrap: "wrap", gap: "10px" }}>
+                            <div style={{ fontSize: "12.5px" }}>
+                              {s.doctor_verified ? (
+                                <div style={{ color: "#047857" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "4px", fontWeight: "700" }}>
+                                    <CheckCircle2 size={14} color="#059669" /> Certified by {s.doctor_name || "Ophthalmologist"} (Verified Grade {s.doctor_decision})
+                                  </div>
+                                  {s.doctor_notes && (
+                                    <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px", fontStyle: "italic" }}>
+                                      "{s.doctor_notes}"
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: "#d97706", display: "flex", alignItems: "center", gap: "4px", fontWeight: "700" }}>
+                                  <Clock size={14} /> Doctor Verification Pending
+                                </span>
+                              )}
+                            </div>
+
+                            <a
+                              href={`${API_BASE_URL}/screenings/${s.id}/report`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                color: "#2563eb",
+                                fontSize: "12.5px",
+                                fontWeight: "700",
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                backgroundColor: "#eff6ff",
+                                border: "1px solid #dbeafe",
+                                padding: "6px 12px",
+                                borderRadius: "7px",
+                              }}
+                            >
+                              View Clinical Report <ExternalLink size={12} />
+                            </a>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

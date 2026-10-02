@@ -79,6 +79,7 @@ function Home() {
             <a href="#home">Home</a>
             <a href="#how-it-works">How It Works</a>
             <a href="#features">Features</a>
+            <Link to="/simulation-dashboard">Simulation Dashboard</Link>
             <a href="#about">About</a>
           </div>
 
@@ -198,16 +199,6 @@ function Home() {
         <section className="hero-section" id="home">
           <div className="hero-container">
             <div className="hero-content">
-              <div className="hero-badge">
-                <span className="badge-dot"></span>
-                AI-POWERED RETINAL SCREENING •{" "}
-                {healthData?.model || "MATLAB ResNet-18"} (
-                {healthData?.status === "healthy"
-                  ? "API CONNECTED"
-                  : "OPERATIONAL"}
-                )
-              </div>
-
               <h1>
                 Detect Earlier.
                 <br />

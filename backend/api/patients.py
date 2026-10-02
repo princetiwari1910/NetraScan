@@ -14,6 +14,7 @@ from schemas import (
     ScreeningResponse,
 )
 from services import storage_service
+from api.screenings import map_screening_to_response
 
 
 router = APIRouter(prefix="/patients", tags=["Patient Management"])
@@ -38,6 +39,23 @@ def populate_patient_summary(patient: Patient) -> PatientResponse:
     """Helper that populates latest screening telemetry on patient response model."""
     latest_screening = patient.screenings[0] if patient.screenings else None
 
+    latest_grade = latest_screening.predicted_grade if latest_screening else None
+    latest_severity = latest_screening.severity_label if latest_screening else None
+    latest_referable = latest_screening.referable if latest_screening else None
+
+    # If doctor verified, respect the certified clinician decision
+    if latest_screening and latest_screening.doctor_verified and latest_screening.doctor_decision is not None:
+        latest_grade = latest_screening.doctor_decision
+        latest_referable = latest_grade >= 2
+        grade_labels = {
+            0: "No Diabetic Retinopathy",
+            1: "Mild Non-Proliferative Diabetic Retinopathy",
+            2: "Moderate Non-Proliferative Diabetic Retinopathy",
+            3: "Severe Non-Proliferative Diabetic Retinopathy",
+            4: "Proliferative Diabetic Retinopathy",
+        }
+        latest_severity = grade_labels.get(latest_grade, latest_severity)
+
     return PatientResponse(
         id=patient.id,
         patient_uid=patient.patient_uid,
@@ -54,9 +72,9 @@ def populate_patient_summary(patient: Patient) -> PatientResponse:
         diabetes_duration=patient.diabetes_duration,
         medical_notes=patient.medical_notes,
         total_screenings=len(patient.screenings),
-        latest_dr_grade=latest_screening.predicted_grade if latest_screening else None,
-        latest_severity_label=latest_screening.severity_label if latest_screening else None,
-        latest_referable=latest_screening.referable if latest_screening else None,
+        latest_dr_grade=latest_grade,
+        latest_severity_label=latest_severity,
+        latest_referable=latest_referable,
         latest_screened_at=latest_screening.screened_at if latest_screening else None,
         created_at=patient.created_at,
         updated_at=patient.updated_at,
@@ -267,44 +285,12 @@ def get_patient_screening_history(
     if current_user.role != "SUPER_ADMIN" and patient.phc_id != current_user.phc_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access forbidden: Cross-PHC history access rejected.")
 
-    screenings = db.query(Screening).filter(Screening.patient_id == patient_id).order_by(Screening.created_at.desc()).all()
+    screenings = (
+        db.query(Screening)
+        .options(joinedload(Screening.patient), joinedload(Screening.phc))
+        .filter(Screening.patient_id == patient_id)
+        .order_by(Screening.created_at.desc())
+        .all()
+    )
 
-    resp_list = []
-    for s in screenings:
-        resp_list.append(
-            ScreeningResponse(
-                id=s.id,
-                screening_uid=s.screening_uid,
-                patient_id=s.patient_id,
-                patient_uid=patient.patient_uid,
-                patient_name=patient.full_name,
-                patient_age=patient.age,
-                patient_gender=patient.gender,
-                phc_id=s.phc_id,
-                phc_name=patient.phc.name if patient.phc else None,
-                performed_by=s.performed_by,
-                examined_eye=s.examined_eye,
-                quality_status=s.quality_status,
-                laplacian_variance=s.laplacian_variance,
-                predicted_grade=s.predicted_grade,
-                severity_label=s.severity_label,
-                confidence=s.confidence,
-                referable=s.referable,
-                model_name=s.model_name,
-                model_version=s.model_version,
-                inference_time_ms=s.inference_time_ms,
-                gradcam_reference=storage_service.resolve_image_url(s.gradcam_reference),
-                ai_evidence=s.ai_evidence,
-
-                class_probabilities=s.class_probabilities,
-                doctor_verified=s.doctor_verified,
-                doctor_id=s.doctor_id,
-                doctor_name=s.doctor_name,
-                doctor_decision=s.doctor_decision,
-                doctor_notes=s.doctor_notes,
-                screened_at=s.screened_at,
-                verified_at=s.verified_at,
-                created_at=s.created_at,
-            )
-        )
-    return resp_list
+    return [map_screening_to_response(s, include_images=True) for s in screenings]

@@ -24,7 +24,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 
-from core.security import get_current_user, require_roles
+from core.security import get_current_user, get_optional_current_user, require_roles
 from db.models import Patient, PHC, Screening, User
 from db.session import get_db, sync_volume, reload_volume
 from schemas import (
@@ -34,6 +34,8 @@ from schemas import (
     PatientInfoRequest,
     AnalysisSuccessResponse,
     ModelMetadata,
+    LesionSummary,
+    LesionFinding,
 )
 from services import (
     AIService,
@@ -62,14 +64,43 @@ def generate_screening_uid(phc_code: str, db: Session) -> str:
     return f"{prefix}{next_num:06d}"
 
 
-def map_screening_to_response(s: Screening, include_images: bool = True) -> ScreeningResponse:
+def map_screening_to_response(
+    s: Screening,
+    include_images: bool = True,
+    lesions: Optional[LesionSummary] = None,
+) -> ScreeningResponse:
     """Maps SQLAlchemy Screening record to Pydantic ScreeningResponse model with signed URLs."""
     patient = s.patient
     phc = s.phc
     fundus_img = storage_service.resolve_image_url(s.image_path) if include_images else None
-    # For listing without heavy images, keep gradcam if small or None
-    gradcam_img = storage_service.resolve_image_url(s.gradcam_reference) if include_images else None
+    # Always provide gradcam_reference so attention heatmaps render immediately across all views
+    gradcam_img = storage_service.resolve_image_url(s.gradcam_reference)
 
+    # Parse lesions and evidence list
+    evidence_list = s.ai_evidence
+    parsed_lesions = lesions
+    if isinstance(s.ai_evidence, dict):
+        evidence_list = s.ai_evidence.get("evidence", [])
+        if parsed_lesions is None and "lesions" in s.ai_evidence and s.ai_evidence["lesions"]:
+            try:
+                parsed_lesions = LesionSummary(**s.ai_evidence["lesions"])
+            except Exception:
+                pass
+    elif isinstance(s.ai_evidence, list):
+        evidence_list = s.ai_evidence
+
+    ai = get_ai_service()
+    model_meta = ModelMetadata(
+        name=s.model_name or "NetraScan ResNet-18",
+        version=s.model_version or "1.0",
+        artifact=getattr(ai, "model_artifact", "NetraScan_ResNet18.onnx") if ai else "NetraScan_ResNet18.onnx",
+        architecture=getattr(ai, "model_architecture", "ResNet-18") if ai else "ResNet-18",
+        sha256=getattr(ai, "model_sha256", "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be") if ai else "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
+        runtime="onnxruntime",
+        target_layer="res5b_relu",
+        referable_threshold=0.35,
+        inference_time_ms=s.inference_time_ms,
+    )
 
     return ScreeningResponse(
         id=s.id,
@@ -92,10 +123,12 @@ def map_screening_to_response(s: Screening, include_images: bool = True) -> Scre
         model_name=s.model_name,
         model_version=s.model_version,
         inference_time_ms=s.inference_time_ms,
+        model=model_meta,
+        lesions=parsed_lesions,
         image_path=fundus_img,
         fundus_image=fundus_img,
         gradcam_reference=gradcam_img,
-        ai_evidence=s.ai_evidence,
+        ai_evidence=evidence_list,
         class_probabilities=s.class_probabilities,
         doctor_verified=s.doctor_verified,
         doctor_id=s.doctor_id,
@@ -245,7 +278,7 @@ def create_screening(
                 model_version=ai_res.model.version if ai_res.model else "1.0",
                 inference_time_ms=ai_res.model.inference_time_ms if ai_res.model else int(inf_duration_ms),
                 gradcam_reference=ai_res.gradcam_image,
-                ai_evidence=ai_res.evidence,
+                ai_evidence={"evidence": ai_res.evidence, "lesions": ai_res.lesions.dict()} if ai_res.lesions else ai_res.evidence,
                 class_probabilities=ai_res.class_probabilities,
                 doctor_verified=False,
                 screened_at=datetime.utcnow(),
@@ -274,7 +307,7 @@ def create_screening(
         total_req_ms = (time.time() - req_start) * 1000
         logger.info(f"[SCREENING COMPLETE] Screening {screening.screening_uid} persisted and returned in {total_req_ms:.1f}ms total.")
 
-        return map_screening_to_response(screening, include_images=True)
+        return map_screening_to_response(screening, include_images=True, lesions=ai_res.lesions)
 
     finally:
         if os.path.exists(temp_path):
@@ -290,7 +323,7 @@ def list_screenings(
     limit: int = 50,
     doctor_verified: Optional[bool] = Query(None, description="Filter by doctor verification status"),
     phc_id: Optional[int] = Query(None, description="Filter by PHC for Super Admin"),
-    include_images: bool = Query(False, description="Whether to include full base64 images (default False for fast list response)"),
+    include_images: bool = Query(True, description="Whether to include full images"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -388,6 +421,51 @@ def get_screening_image(
         )
 
 
+@router.get("/{screening_id}/gradcam")
+def get_screening_gradcam(
+    screening_id: int,
+    db: Session = Depends(get_db),
+):
+    """Serve the generated Grad-CAM attention heatmap overlay for a screening."""
+    screening = db.query(Screening).filter(Screening.id == screening_id).first()
+    if not screening or not screening.gradcam_reference:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Grad-CAM heatmap not found for this screening."
+        )
+
+    # 1. Base64 Data URI
+    if screening.gradcam_reference.startswith("data:"):
+        try:
+            header, encoded = screening.gradcam_reference.split(",", 1)
+            mime = header.split(";")[0].replace("data:", "")
+            image_bytes = base64.b64decode(encoded)
+            return Response(content=image_bytes, media_type=mime)
+        except Exception:
+            raise HTTPException(status_code=500, detail="Error decoding stored Grad-CAM image")
+
+    # 2. Supabase Storage Object Path
+    if storage_service.is_storage_path(screening.gradcam_reference):
+        dl = storage_service.download_by_reference(screening.gradcam_reference)
+        if dl:
+            img_bytes, mime_type = dl
+            return Response(content=img_bytes, media_type=mime_type)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Grad-CAM image object not found in Supabase Storage."
+        )
+
+    # 3. Local disk fallback
+    elif os.path.exists(screening.gradcam_reference):
+        with open(screening.gradcam_reference, "rb") as f:
+            return Response(content=f.read(), media_type="image/jpeg")
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Grad-CAM image file not found on server."
+        )
+
+
 @router.post("/{screening_id}/verify", response_model=ScreeningResponse)
 def verify_screening(
     screening_id: int,
@@ -430,7 +508,7 @@ def get_screening_clinical_report(
     screening_id: int,
     download: bool = Query(default=False, description="Set true to force download"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: Optional[User] = Depends(get_optional_current_user),
 ):
     """Generates standardized printable clinical HTML report for a specific screening."""
     screening = db.query(Screening).filter(Screening.id == screening_id).first()
@@ -440,36 +518,76 @@ def get_screening_clinical_report(
             detail=f"Screening #{screening_id} not found."
         )
 
-    if current_user.role != "SUPER_ADMIN" and screening.phc_id != current_user.phc_id:
+    if current_user and getattr(current_user, "role", None) != "SUPER_ADMIN" and current_user.phc_id and screening.phc_id != current_user.phc_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access forbidden: Cross-PHC report generation rejected."
         )
 
     patient = screening.patient
-    
-    # Duration parsing
-    dur_num = 8
-    if patient.diabetes_duration:
-        digits = "".join(filter(str.isdigit, patient.diabetes_duration))
-        if digits:
-            dur_num = int(digits)
+    if not patient:
+        # Fallback patient record if detached
+        patient_uid = f"NS-PUN-{String(screening.patient_id or 1).zfill(6)}"
+        patient_name = "Patient Record"
+        patient_age = 50
+        patient_gender = "Unspecified"
+        diabetes_status = "Type 2"
+        dur_num = 5
+    else:
+        patient_uid = patient.patient_uid or f"NS-PUN-{str(patient.id).zfill(6)}"
+        patient_name = patient.full_name or f"Patient #{patient.id}"
+        patient_age = patient.age or 50
+        patient_gender = patient.gender or "Unspecified"
+        diabetes_status = patient.diabetes_status or "Type 2"
+        # Duration parsing
+        dur_num = 8
+        if patient.diabetes_duration:
+            digits = "".join(filter(str.isdigit, str(patient.diabetes_duration)))
+            if digits:
+                dur_num = int(digits)
 
     patient_info_req = PatientInfoRequest(
-        patient_id=patient.patient_uid,
-        name=patient.full_name,
-        age=patient.age,
-        gender=patient.gender,
-        examined_eye=screening.examined_eye,
-        diabetes_type=patient.diabetes_status or "Type 2",
+        patient_id=patient_uid,
+        name=patient_name,
+        age=patient_age,
+        gender=patient_gender,
+        examined_eye=screening.examined_eye or "OD - Right Eye",
+        diabetes_type=diabetes_status,
         duration_years=dur_num,
         clinician_notes=screening.doctor_notes or "Automated screening evaluated via NetraScan ONNX AI.",
     )
 
     verified_grade = screening.doctor_decision if screening.doctor_verified and screening.doctor_decision is not None else screening.predicted_grade
 
-    # Resolve Grad-CAM signed URL for private bucket access or pass base64 through
+    # Resolve Grad-CAM and Fundus signed URLs for private bucket access or pass base64 through
     gradcam_resolved = storage_service.resolve_image_url(screening.gradcam_reference) or ""
+    fundus_resolved = storage_service.resolve_image_url(screening.image_path) or None
+
+    # Parse lesions and evidence
+    evidence_list = ["Standard fundus evaluation completed."]
+    lesions_obj: Optional[LesionSummary] = None
+    if isinstance(screening.ai_evidence, dict):
+        evidence_list = screening.ai_evidence.get("evidence", evidence_list)
+        if screening.ai_evidence.get("lesions"):
+            try:
+                lesions_obj = LesionSummary(**screening.ai_evidence["lesions"])
+            except Exception:
+                pass
+    elif isinstance(screening.ai_evidence, list):
+        evidence_list = screening.ai_evidence
+
+    ai = get_ai_service()
+    model_meta = ModelMetadata(
+        name=screening.model_name or "NetraScan ResNet-18",
+        version=screening.model_version or "1.0",
+        artifact=getattr(ai, "model_artifact", "NetraScan_ResNet18.onnx") if ai else "NetraScan_ResNet18.onnx",
+        architecture=getattr(ai, "model_architecture", "ResNet-18") if ai else "ResNet-18",
+        sha256=getattr(ai, "model_sha256", "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be") if ai else "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
+        runtime="onnxruntime",
+        target_layer="res5b_relu",
+        referable_threshold=0.35,
+        inference_time_ms=screening.inference_time_ms,
+    )
 
     analysis_res_obj = AnalysisSuccessResponse(
         status="success",
@@ -479,27 +597,22 @@ def get_screening_clinical_report(
         confidence=screening.confidence,
         class_probabilities=screening.class_probabilities or {},
         gradcam_image=gradcam_resolved,
-        evidence=screening.ai_evidence or ["Standard fundus evaluation completed."],
+        evidence=evidence_list,
         quality_metric=QualityMetric(
             laplacian_variance=screening.laplacian_variance,
             is_blurry=False,
             threshold=35.0,
             status=screening.quality_status,
         ),
-        model=ModelMetadata(
-            name=screening.model_name,
-            version=screening.model_version,
-            runtime="onnxruntime",
-            target_layer="res5b_relu",
-            referable_threshold=0.35,
-            inference_time_ms=screening.inference_time_ms,
-        ),
+        model=model_meta,
+        lesions=lesions_obj,
     )
 
     html_content = ReportService.generate_html_report(
         patient_info=patient_info_req,
         analysis_result=analysis_res_obj,
         report_id=screening.screening_uid,
+        fundus_image=fundus_resolved,
     )
 
 

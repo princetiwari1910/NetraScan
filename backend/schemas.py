@@ -32,10 +32,29 @@ class HealthResponse(BaseModel):
 class ModelMetadata(BaseModel):
     name: str = "NetraScan ResNet-18"
     version: str = "1.0"
+    artifact: str = "NetraScan_ResNet18.onnx"
+    architecture: str = "ResNet-18"
+    sha256: Optional[str] = "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be"
     runtime: str = "onnxruntime"
     target_layer: str = "res5b_relu"
     referable_threshold: float = 0.35
     inference_time_ms: Optional[int] = None
+
+
+class LesionFinding(BaseModel):
+    id: str = Field(..., description="Unique identifier for lesion candidate")
+    type: Literal["MA", "HE", "EX", "SE"] = Field(..., description="Lesion class code: MA, HE, EX, SE")
+    name: str = Field(..., description="Full descriptive clinical lesion name")
+    confidence: float = Field(..., description="Confidence score (0.0 to 1.0)")
+    bbox: List[float] = Field(..., description="Normalized bounding box [x_min, y_min, width, height] in [0, 1]")
+    center: List[float] = Field(..., description="Normalized center coordinates [cx, cy] in [0, 1]")
+    area_px: Optional[int] = Field(default=None, description="Candidate lesion area in pixels")
+
+
+class LesionSummary(BaseModel):
+    total_count: int = Field(default=0, description="Total number of localized lesion findings")
+    by_type: Dict[str, int] = Field(default_factory=dict, description="Lesion count breakdown by type (MA, HE, EX, SE)")
+    findings: List[LesionFinding] = Field(default_factory=list, description="List of localized lesion candidate findings")
 
 
 class AnalysisSuccessResponse(BaseModel):
@@ -49,6 +68,7 @@ class AnalysisSuccessResponse(BaseModel):
     evidence: List[str] = Field(default_factory=list, description="Clinical biomarkers and evidence associated with the grade")
     quality_metric: QualityMetric
     model: Optional[ModelMetadata] = None
+    lesions: Optional[LesionSummary] = None
 
 
 class AnalysisRecaptureResponse(BaseModel):
@@ -244,6 +264,8 @@ class ScreeningResponse(BaseModel):
     model_name: str
     model_version: str
     inference_time_ms: int
+    model: Optional[ModelMetadata] = None
+    lesions: Optional[LesionSummary] = None
     image_path: Optional[str] = None
     fundus_image: Optional[str] = None
     gradcam_reference: Optional[str] = None
@@ -265,12 +287,31 @@ class ScreeningResponse(BaseModel):
 # ============================================================
 # Dashboard Statistics Schemas
 # ============================================================
+class OperationalMetricsResponse(BaseModel):
+    phc_id: Optional[int] = None
+    phc_name: Optional[str] = None
+    patients_today: int = Field(0, description="Actual unique patients with screening activity today (COUNT DISTINCT patient_id)")
+    patients_screened: int = Field(0, description="Actual screening procedures performed today (COUNT screenings)")
+    annual_patients: int = Field(0, description="Actual unique patients with screening activity this calendar year (COUNT DISTINCT patient_id)")
+    patients_this_year: int = Field(0, description="Alias for annual_patients")
+    referable_cases: int = Field(0, description="Actual referable cases detected today (ICDR Grade >= 2)")
+    total_referable_cases: int = Field(0, description="Total historical referable cases in scope")
+    total_patients: int = Field(0, description="Total registered patients in scope")
+    total_screenings: int = Field(0, description="Total completed screenings in scope")
+    today_screenings: int = Field(0, description="Alias for patients_screened")
+    timezone: str = "UTC"
+    timestamp_field: str = "screenings.created_at"
+
+
 class DashboardStatsResponse(BaseModel):
     phc_id: Optional[int] = None
     phc_name: Optional[str] = None
     total_patients: int
     total_screenings: int
     today_screenings: int
+    patients_today: int = 0
+    annual_patients: int = 0
+    patients_this_year: int = 0
     referable_cases: int
     urgent_cases: int  # Grade 3 & 4
     pending_doctor_reviews: int

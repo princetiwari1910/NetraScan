@@ -16,6 +16,9 @@ import Screening from "./pages/Screening";
 import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
 import Report from "./pages/Report";
+import CapacityDashboard from "./pages/CapacityDashboard";
+import Simulink from "./pages/Simulink";
+import SimulationDashboard from "./pages/SimulationDashboard";
 import Unauthorized from "./pages/Unauthorized";
 
 function App() {
@@ -30,6 +33,14 @@ function App() {
 
           {/* MAIN HOME PORTAL */}
           <Route
+            path="/"
+            element={
+              <RoleRoute>
+                <Home />
+              </RoleRoute>
+            }
+          />
+          <Route
             path="/home"
             element={
               <RoleRoute>
@@ -37,6 +48,10 @@ function App() {
               </RoleRoute>
             }
           />
+
+          {/* SIMULATION DASHBOARD (SIMULINK RESOURCE OPTIMIZATION MODEL) */}
+          <Route path="/simulation-dashboard" element={<SimulationDashboard />} />
+          <Route path="/simulink" element={<SimulationDashboard />} />
 
           {/* SUPER ADMIN PORTAL (FLEET & USER GOVERNANCE) */}
           <Route
@@ -118,6 +133,24 @@ function App() {
             }
           />
 
+          {/* TELEMEDICINE SCREENING CAPACITY (SIMULINK MODEL DASHBOARD) */}
+          <Route
+            path="/capacity"
+            element={
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
+                <CapacityDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/telemedicine-capacity"
+            element={
+              <RoleRoute allowedRoles={["STAFF", "DOCTOR", "SUPER_ADMIN"]}>
+                <CapacityDashboard />
+              </RoleRoute>
+            }
+          />
+
           {/* PATIENT TELE-HEALTH PORTAL */}
           <Route
             path="/patient-portal"
@@ -185,9 +218,6 @@ function App() {
               </RoleRoute>
             }
           />
-
-          {/* ROOT → LOGIN */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
 
           {/* UNKNOWN URL */}
           <Route path="*" element={<Navigate to="/login" replace />} />

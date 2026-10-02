@@ -42,6 +42,7 @@ from api.phcs import router as phcs_router
 from api.patients import router as patients_router
 from api.screenings import router as screenings_router
 from api.dashboard import router as dashboard_router
+from api.simulation import router as simulation_router
 
 # -----------------------------------------------------------------------------
 # Configuration & Model Lifecycle Loader
@@ -122,6 +123,7 @@ app.include_router(phcs_router, prefix=settings.API_V1_STR)
 app.include_router(patients_router, prefix=settings.API_V1_STR)
 app.include_router(screenings_router, prefix=settings.API_V1_STR)
 app.include_router(dashboard_router, prefix=settings.API_V1_STR)
+app.include_router(simulation_router, prefix=settings.API_V1_STR)
 
 # Also expose without /api prefix for convenience
 app.include_router(auth_router)
@@ -129,6 +131,7 @@ app.include_router(phcs_router)
 app.include_router(patients_router)
 app.include_router(screenings_router)
 app.include_router(dashboard_router)
+app.include_router(simulation_router)
 
 
 @app.on_event("startup")
@@ -171,7 +174,11 @@ async def model_health_check():
     is_loaded = bool(ai is not None and getattr(ai, "model_loaded", False))
     return {
         "status": "ready" if is_loaded else "unavailable",
-        "model": "NetraScan ResNet-18",
+        "model_name": getattr(ai, "model_name", "NetraScan ResNet-18") if ai else "NetraScan ResNet-18",
+        "model_artifact": getattr(ai, "model_artifact", "NetraScan_ResNet18.onnx") if ai else "NetraScan_ResNet18.onnx",
+        "model_architecture": getattr(ai, "model_architecture", "ResNet-18") if ai else "ResNet-18",
+        "model_sha256": getattr(ai, "model_sha256", "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be") if ai else "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
+        "model_path": str(getattr(ai, "model_path", "ml-training/models/NetraScan_ResNet18.onnx")) if ai else "ml-training/models/NetraScan_ResNet18.onnx",
         "runtime": "onnxruntime",
         "inference_provider": "CPUExecutionProvider",
         "target_layer": "res5b_relu",
@@ -185,11 +192,15 @@ async def model_health_check():
 @app.get("/api/ready", tags=["System"], include_in_schema=False)
 async def readiness_check():
     """Readiness probe returning whether the AI model is warm and ready for screening requests."""
-    is_ready = bool(ai_service is not None and getattr(ai_service, "model_loaded", False))
+    ai = get_service()
+    is_ready = bool(ai is not None and getattr(ai, "model_loaded", False))
     return {
         "status": "ready" if is_ready else "initializing",
         "model_loaded": is_ready,
-        "model": "ResNet-18 ONNX",
+        "model": "NetraScan ResNet-18",
+        "model_artifact": "NetraScan_ResNet18.onnx",
+        "model_architecture": "ResNet-18",
+        "model_sha256": getattr(ai, "model_sha256", "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be") if ai else "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
         "inference_provider": "CPUExecutionProvider",
         "version": "1.0.0",
     }
@@ -199,9 +210,14 @@ async def readiness_check():
 @app.get("/api/model-status", tags=["System"], include_in_schema=False)
 async def model_status():
     """Detailed model status endpoint returning architecture metadata and input/output shapes."""
+    ai = get_service()
     is_loaded = is_model_loaded()
     return {
         "model_name": "NetraScan ResNet-18",
+        "model_artifact": "NetraScan_ResNet18.onnx",
+        "model_architecture": "ResNet-18",
+        "model_sha256": getattr(ai, "model_sha256", "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be") if ai else "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
+        "model_path": str(getattr(ai, "model_path", "ml-training/models/NetraScan_ResNet18.onnx")) if ai else "ml-training/models/NetraScan_ResNet18.onnx",
         "loaded": is_loaded,
         "runtime": "onnxruntime",
         "inference_provider": "CPUExecutionProvider",

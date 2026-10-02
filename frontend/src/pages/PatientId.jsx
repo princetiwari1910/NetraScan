@@ -98,6 +98,10 @@ function PatientId() {
               Features
             </a>
 
+            <a href="/simulation-dashboard">
+              Simulation Dashboard
+            </a>
+
             <a href="/home#about">
               About
             </a>

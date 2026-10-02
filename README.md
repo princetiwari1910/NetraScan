@@ -168,16 +168,17 @@ flowchart TD
 
 ### Operational in Live Release:
 - ✅ **Strict Fundus Anatomical Gatekeeper**: Rejects non-medical and non-fundus photographs in $<15\text{ ms}$ before neural computation.
-- ✅ **Pre-warmed ONNX Inference Session**: Singleton model lifecycle loaded once at boot, maintaining sub-$40\text{ ms}$ inference latencies.
+- ✅ **Pre-warmed ONNX Inference Session**: Singleton ResNet-18 model lifecycle loaded once at boot, maintaining sub-$40\text{ ms}$ inference latencies.
 - ✅ **Authentic Grad-CAM Explainability**: Class activation mapping dynamically extracted from intermediate `res5b_relu` convolutional tensor outputs.
+- ✅ **Derived Retinal Lesion Localization (MA, HE, EX, SE)**: Multi-scale morphological filtering correlated with convolutional attention maps to detect and localize Microaneurysms, Hemorrhages, Hard Exudates, and Soft Exudates.
+- ✅ **Interactive Clinical Retinal Workstation**: Zero-drift synchronized pan/zoom viewport ($50\%\text{–}400\%$), click-to-inspect auto-zoom, sequential lesion navigation, category filtering, and keyboard shortcuts.
 - ✅ **Multi-Tenant PHC & Role-Based Security**: Role-based access control (`SUPER_ADMIN`, `PHC_STAFF`, `DOCTOR`) with JWT authentication and password hashing.
-- ✅ **PostgreSQL Clinical Record Store**: Persistent screening history, patient UID generation, and doctor verification decision logging.
-- ✅ **Dynamic Diagnostic UI**: Finite state transitions with progressive stage trackers, live execution timers, and actionable retry controls.
-- ✅ **Containerized ML Runtime**: Production Docker setup optimized with single-worker concurrency throttles to prevent container memory limit crashes.
+- ✅ **Clinical Record Store**: Persistent screening history, patient UID generation, and doctor verification decision logging.
+- ✅ **Detailed Clinical Report**: Technical and architectural reference documented in [`docs/NETRASCAN_CLINICAL_WORKSTATION_REPORT.md`](docs/NETRASCAN_CLINICAL_WORKSTATION_REPORT.md).
 
 ### Under Development / Planned Capabilities:
-- ⏳ **Automated Microvascular Lesion Segmentation**: Fine-grained pixel-level segmentation of cotton-wool spots and hard exudates.
 - ⏳ **Offline-First PWA Progressive Sync**: Edge inference via ONNX Runtime WebAssembly (WASM) for completely offline rural health outposts.
+- ⏳ **DICOM Store Integration**: PACS/DICOM export adapter for hospital-grade ophthalmic archival.
 - ⏳ **FHIR / HL7 Diagnostic Interoperability**: Direct integration with hospital Electronic Medical Records (EMR) systems.
 
 ---

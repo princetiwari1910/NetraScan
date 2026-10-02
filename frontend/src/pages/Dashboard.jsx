@@ -17,6 +17,7 @@ import {
   ExternalLink,
   ArrowRight,
 } from "lucide-react";
+import TelemedicineCapacity from "../components/TelemedicineCapacity";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -319,6 +320,9 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
+
+            {/* TELEMEDICINE SCREENING CAPACITY (SIMULINK MODEL) */}
+            <TelemedicineCapacity />
 
             {/* RECENT SCREENINGS TABLE */}
             <div

@@ -14,6 +14,7 @@ Pipeline:
 import os
 import gc
 import time
+import hashlib
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -26,9 +27,12 @@ from schemas import (
     AnalysisSuccessResponse,
     QualityMetric,
     ModelMetadata,
+    LesionSummary,
+    LesionFinding,
 )
 from services.preprocessing import load_and_preprocess_fundus
 from services.gradcam import ONNXGradCAM
+from services.lesion_service import extract_retinal_lesions
 
 
 # ============================================================
@@ -127,7 +131,11 @@ class AIService:
             return
 
         self.model_path = resolve_model_path()
-        print(f"📦 Loading finalized NetraScan ResNet-18 ONNX model from: {self.model_path}")
+        with open(str(self.model_path), "rb") as f:
+            self.model_sha256 = hashlib.sha256(f.read()).hexdigest()
+        self.model_artifact = self.model_path.name
+        self.model_architecture = "ResNet-18"
+        print(f"📦 Loading finalized NetraScan ResNet-18 ONNX model from: {self.model_path} (SHA-256: {self.model_sha256})")
 
         # 1. Load ONNX Graph and extract FC weights for Grad-CAM
         onnx_model = onnx.load(str(self.model_path))
@@ -278,6 +286,8 @@ class AIService:
         referable_prob = float(np.sum(probabilities[2:]))
         is_referable = bool(referable_prob >= REFERABLE_THRESHOLD)
 
+        cam_2d = self.gradcam_engine.compute_cam(feature_maps, predicted_grade)
+
         try:
             gradcam_data_uri = self.gradcam_engine.generate_overlay_data_uri(
                 feature_maps=feature_maps,
@@ -288,6 +298,35 @@ class AIService:
         except Exception as cam_err:
             print(f"⚠️ [AI] Grad-CAM generation notice: {cam_err}")
             gradcam_data_uri = ""
+
+        # Extract verified lesion candidate findings (MA, HE, EX, SE)
+        try:
+            raw_lesions = extract_retinal_lesions(
+                img_rgb=orig_rgb,
+                cam_2d=cam_2d,
+                predicted_grade=predicted_grade,
+                class_probs=class_probabilities,
+            )
+            lesion_findings = [
+                LesionFinding(
+                    id=f["id"],
+                    type=f["type"],
+                    name=f["name"],
+                    confidence=f["confidence"],
+                    bbox=f["bbox"],
+                    center=f["center"],
+                    area_px=f.get("area_px"),
+                )
+                for f in raw_lesions.get("findings", [])
+            ]
+            lesion_summary = LesionSummary(
+                total_count=raw_lesions.get("total_count", 0),
+                by_type=raw_lesions.get("by_type", {}),
+                findings=lesion_findings,
+            )
+        except Exception as lesion_err:
+            print(f"⚠️ [AI] Lesion extraction notice: {lesion_err}")
+            lesion_summary = LesionSummary(total_count=0, by_type={"MA": 0, "HE": 0, "EX": 0, "SE": 0}, findings=[])
 
         evidence = ICDR_EVIDENCE_MAP.get(
             predicted_grade,
@@ -301,13 +340,16 @@ class AIService:
         gc.collect()
 
         t_total_ms = (time.time() - t_start) * 1000
-        print(f"[AI] total: {t_total_ms:.1f} ms (Grade: {predicted_grade}, Conf: {confidence*100:.2f}%)\n")
+        print(f"[AI] total: {t_total_ms:.1f} ms (Grade: {predicted_grade}, Conf: {confidence*100:.2f}%, Lesions: {lesion_summary.total_count})\n")
 
         inference_time_ms = int(t_total_ms)
 
         model_meta = ModelMetadata(
             name=MODEL_NAME,
             version=MODEL_VERSION,
+            artifact=self.model_artifact,
+            architecture=self.model_architecture,
+            sha256=self.model_sha256,
             runtime="onnxruntime",
             target_layer=self.target_layer_name,
             referable_threshold=REFERABLE_THRESHOLD,
@@ -325,6 +367,7 @@ class AIService:
             evidence=evidence,
             quality_metric=quality_metric,
             model=model_meta,
+            lesions=lesion_summary,
         )
 
 

@@ -188,6 +188,41 @@ export function Navbar() {
               </Link>
             )}
 
+            {/* SIMULATION DASHBOARD & CAPACITY MODEL - EXCLUDED FROM DOCTOR PORTAL */}
+            {role !== "DOCTOR" && !currentPath.includes("doctor") && (role === "STAFF" || role === "SUPER_ADMIN") && (
+              <Link
+                to="/simulation-dashboard"
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  color: currentPath === "/simulation-dashboard" || currentPath === "/simulink" ? "#38BDF8" : "#94A3B8",
+                  background: currentPath === "/simulation-dashboard" || currentPath === "/simulink" ? "rgba(56, 189, 248, 0.1)" : "transparent",
+                }}
+              >
+                Simulation Dashboard
+              </Link>
+            )}
+
+            {role !== "DOCTOR" && !currentPath.includes("doctor") && (role === "STAFF" || role === "SUPER_ADMIN") && (
+              <Link
+                to="/capacity"
+                style={{
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                  color: currentPath === "/capacity" || currentPath === "/telemedicine-capacity" ? "#38BDF8" : "#94A3B8",
+                  background: currentPath === "/capacity" || currentPath === "/telemedicine-capacity" ? "rgba(56, 189, 248, 0.1)" : "transparent",
+                }}
+              >
+                Capacity Model
+              </Link>
+            )}
+
             <Link
               to="/patient-portal"
               style={{
