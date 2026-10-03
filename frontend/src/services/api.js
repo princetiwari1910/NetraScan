@@ -307,7 +307,8 @@ export const createScreening = async (patientId, examinedEye, file) => {
           "Screening validation failed."
       );
 
-      errorObj.errorCode = detail.error_code || "SCREENING_FAILED";
+      errorObj.errorCode = detail.error_code || (response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SCREENING_FAILED");
+      errorObj.httpStatus = response.status;
       errorObj.recommendation = detail.recommendation;
       errorObj.validFundus = detail.valid_fundus;
       errorObj.status = detail.status;
@@ -315,7 +316,10 @@ export const createScreening = async (patientId, examinedEye, file) => {
       throw errorObj;
     }
 
-    throw new Error(detail || "Screening failed.");
+    const simpleError = new Error(detail || `Screening request failed with status ${response.status}.`);
+    simpleError.httpStatus = response.status;
+    simpleError.errorCode = response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "SCREENING_FAILED";
+    throw simpleError;
   }
 
   return await response.json();
@@ -471,7 +475,8 @@ export const analyzeRetinalImage = async (file) => {
           "Analysis failed."
       );
 
-      errorObj.errorCode = detail.error_code || "ANALYSIS_FAILED";
+      errorObj.errorCode = detail.error_code || (response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "ANALYSIS_FAILED");
+      errorObj.httpStatus = response.status;
       errorObj.recommendation = detail.recommendation;
       errorObj.validFundus = detail.valid_fundus;
       errorObj.status = detail.status;
@@ -479,11 +484,14 @@ export const analyzeRetinalImage = async (file) => {
       throw errorObj;
     }
 
-    throw new Error(
+    const simpleError = new Error(
       errorData.detail ||
         errorData.message ||
         `Analysis failed (${response.status})`
     );
+    simpleError.httpStatus = response.status;
+    simpleError.errorCode = response.status === 401 ? "AUTH_ERROR" : response.status === 403 ? "FORBIDDEN" : "ANALYSIS_FAILED";
+    throw simpleError;
   }
 
   return await response.json();

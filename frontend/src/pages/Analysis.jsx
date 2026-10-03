@@ -256,71 +256,101 @@ function Analysis() {
         file_size: image?.size,
       });
 
-      let result;
+      let result = null;
       let persistedRecord = null;
+      let screeningError = null;
 
-      // Call persistent PostgreSQL screening endpoint (POST /api/screenings)
+      // 1. Try persistent PostgreSQL screening endpoint (POST /screenings) with 1 auto-retry
       if (resolvedPatientId && typeof resolvedPatientId === "number") {
-        const record = await createScreening(
-          resolvedPatientId,
-          examinedEye,
-          image
-        );
-        persistedRecord = record;
-        setScreeningRecord(record);
-        setPatient({
-          id: record.patient_id,
-          patient_uid: record.patient_uid,
-          full_name: record.patient_name,
-          name: record.patient_name,
-          age: record.patient_age,
-          gender: record.patient_gender,
-          location: record.phc_name,
-          examined_eye: record.examined_eye,
-        });
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            const record = await createScreening(
+              resolvedPatientId,
+              examinedEye,
+              image
+            );
+            persistedRecord = record;
+            setScreeningRecord(record);
+            setPatient({
+              id: record.patient_id,
+              patient_uid: record.patient_uid,
+              full_name: record.patient_name,
+              name: record.patient_name,
+              age: record.patient_age,
+              gender: record.patient_gender,
+              location: record.phc_name,
+              examined_eye: record.examined_eye,
+            });
 
-        // Convert to AnalysisSuccessResponse structure for Results page
-        result = {
-          status: "success",
-          screening_id: record.id,
-          screening_uid: record.screening_uid,
-          patient_id: record.patient_id,
-          patient_uid: record.patient_uid,
-          patient_name: record.patient_name,
-          patient_age: record.patient_age,
-          patient_gender: record.patient_gender,
-          phc_name: record.phc_name,
-          examined_eye: record.examined_eye,
-          dr_grade: record.predicted_grade,
-          severity_label: record.severity_label,
-          referable: record.referable,
-          confidence: record.confidence,
-          class_probabilities: record.class_probabilities || {},
-          fundus_image: record.fundus_image || record.image_path || preview || "",
-          image_path: record.image_path || record.fundus_image || preview || "",
-          gradcam_image: record.gradcam_reference || "",
-          evidence: record.ai_evidence || [],
-          quality_metric: {
-            laplacian_variance: record.laplacian_variance,
-            is_blurry: false,
-            threshold: 35.0,
-            status: record.quality_status,
-          },
-          lesions: record.lesions || null,
-          model: record.model || {
-            name: record.model_name || "NetraScan ResNet-18",
-            version: record.model_version || "1.0",
-            artifact: "NetraScan_ResNet18.onnx",
-            architecture: "ResNet-18",
-            sha256: "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
-            runtime: "onnxruntime",
-            target_layer: "res5b_relu",
-            referable_threshold: 0.35,
-            inference_time_ms: record.inference_time_ms || 28,
-          },
-        };
-      } else {
-        // Fallback to direct /analyze endpoint
+            // Convert to AnalysisSuccessResponse structure for Results page
+            result = {
+              status: "success",
+              screening_id: record.id,
+              screening_uid: record.screening_uid,
+              patient_id: record.patient_id,
+              patient_uid: record.patient_uid,
+              patient_name: record.patient_name,
+              patient_age: record.patient_age,
+              patient_gender: record.patient_gender,
+              phc_name: record.phc_name,
+              examined_eye: record.examined_eye,
+              dr_grade: record.predicted_grade,
+              severity_label: record.severity_label,
+              referable: record.referable,
+              confidence: record.confidence,
+              class_probabilities: record.class_probabilities || {},
+              fundus_image: record.fundus_image || record.image_path || preview || "",
+              image_path: record.image_path || record.fundus_image || preview || "",
+              gradcam_image: record.gradcam_reference || "",
+              evidence: record.ai_evidence || [],
+              quality_metric: {
+                laplacian_variance: record.laplacian_variance,
+                is_blurry: false,
+                threshold: 35.0,
+                status: record.quality_status,
+              },
+              lesions: record.lesions || null,
+              model: record.model || {
+                name: record.model_name || "NetraScan ResNet-18",
+                version: record.model_version || "1.0",
+                artifact: "NetraScan_ResNet18.onnx",
+                architecture: "ResNet-18",
+                sha256: "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be",
+                runtime: "onnxruntime",
+                target_layer: "res5b_relu",
+                referable_threshold: 0.35,
+                inference_time_ms: record.inference_time_ms || 28,
+              },
+            };
+            screeningError = null;
+            break;
+          } catch (err) {
+            screeningError = err;
+            // Stop immediately if it's a validation rejection, non-fundus, blur, or auth error
+            if (
+              err.validFundus === false ||
+              err.errorCode === "INVALID_FUNDUS_IMAGE" ||
+              err.errorCode === "RECAPTURE_REQUIRED" ||
+              err.httpStatus === 400 ||
+              err.httpStatus === 422 ||
+              err.httpStatus === 401 ||
+              err.httpStatus === 403
+            ) {
+              throw err;
+            }
+            if (attempt === 1) {
+              console.warn("[NetraScan] Screening attempt 1 transient notice, retrying in 1s...", err.message);
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          }
+        }
+      }
+
+      // 2. Resilient fallback to direct /analyze endpoint if createScreening had a network/server issue
+      if (!result) {
+        if (screeningError) {
+          console.warn("[NetraScan] Falling back to direct ONNX inference endpoint:", screeningError.message);
+        }
         result = await analyzeRetinalImage(image);
       }
 
@@ -354,16 +384,21 @@ function Analysis() {
           : activePatient,
       };
 
+      // Safely persist without crashing Safari storage quotas
       try {
-        sessionStorage.setItem("netrascan_latest_result", JSON.stringify(result));
-        if (persistedRecord) {
-          sessionStorage.setItem("netrascan_latest_record", JSON.stringify(persistedRecord));
+        const safeResult = { ...result };
+        if (safeResult.fundus_image && safeResult.fundus_image.length > 500000) {
+          safeResult.fundus_image = "";
         }
-        if (result.fundus_image) {
-          sessionStorage.setItem("netrascan_latest_preview", result.fundus_image);
+        sessionStorage.setItem("netrascan_latest_result", JSON.stringify(safeResult));
+        if (persistedRecord) {
+          const safeRecord = { ...persistedRecord };
+          if (safeRecord.image_path && safeRecord.image_path.length > 500000) safeRecord.image_path = "";
+          if (safeRecord.fundus_image && safeRecord.fundus_image.length > 500000) safeRecord.fundus_image = "";
+          sessionStorage.setItem("netrascan_latest_record", JSON.stringify(safeRecord));
         }
       } catch (sessionErr) {
-        console.warn("Session storage notice:", sessionErr);
+        console.warn("Session storage quota notice:", sessionErr);
       }
 
       if (result.status === "success") {
@@ -462,14 +497,25 @@ function Analysis() {
         err.message?.toLowerCase().includes("timeout") ||
         err.message?.toLowerCase().includes("timed out");
 
+      const isNetworkLoadFail =
+        err.name === "TypeError" ||
+        err.message?.toLowerCase().includes("load failed") ||
+        err.message?.toLowerCase().includes("failed to fetch") ||
+        err.message?.toLowerCase().includes("network");
+
+      let formattedMessage = err.message;
+      if (isNetworkLoadFail) {
+        formattedMessage = "Connection to the NetraScan AI service was interrupted. Please ensure stable internet and click 'Retry Screening' to resume.";
+      } else if (!formattedMessage || formattedMessage.toLowerCase().includes("object")) {
+        formattedMessage = "The NetraScan AI backend did not respond. Click 'Retry Screening' to resubmit.";
+      }
+
       setErrorState({
         type: isTimeout ? "TIMEOUT" : "SERVER_ERROR",
         title: isTimeout ? "AI screening could not be completed" : "Unable to connect to the AI screening service",
         message: isTimeout
           ? "The inference service did not respond in time. Please retry screening."
-          : err.message && !err.message.toLowerCase().includes("object")
-          ? err.message
-          : "The NetraScan AI backend did not respond. Click 'Retry Screening' to resubmit.",
+          : formattedMessage,
         action: "retry",
       });
     } finally {
