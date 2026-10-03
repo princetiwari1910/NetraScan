@@ -2,10 +2,10 @@
 NetraScan Retinal Lesion Detection & Localization Service
 Performs morphological multi-scale lesion candidate extraction guided by ResNet-18 CAM activation maps.
 Extracts:
-- MA: Microaneurysms (focal capillary dilations)
-- HE: Intraretinal Hemorrhages (dot/blot hemorrhages)
-- EX: Hard Exudates (lipid/protein deposits)
-- SE: Soft Exudates / Cotton Wool Spots (localized ischemia/infarction)
+- MA: Microaneurysms (focal capillary outpouchings / punctate microvascular lesions)
+- HE: Intraretinal Hemorrhages (dot / blot / flame-shaped hemorrhages)
+- EX: Hard Exudates (lipid / lipoprotein precipitates with discrete margins)
+- SE: Soft Exudates / Cotton Wool Spots (localized nerve fiber layer microinfarctions)
 """
 
 from typing import Dict, List, Any, Optional
@@ -26,7 +26,7 @@ def extract_retinal_lesions(
     """
     h, w = img_rgb.shape[:2]
 
-    # For Grade 0 (Normal Retina), return 0 findings
+    # For Grade 0 (Normal Retina / No DR), return 0 findings
     if predicted_grade == 0:
         return {
             "total_count": 0,
@@ -60,45 +60,110 @@ def extract_retinal_lesions(
     cv2.circle(od_mask, max_loc, od_radius, 255, -1)
 
     valid_mask = cv2.bitwise_and(retina_mask, cv2.bitwise_not(od_mask))
+    if not np.any(valid_mask > 0):
+        return {
+            "total_count": 0,
+            "by_type": {"MA": 0, "HE": 0, "EX": 0, "SE": 0},
+            "findings": [],
+        }
 
-    findings: List[Dict[str, Any]] = []
+    findings_by_type: Dict[str, List[Dict[str, Any]]] = {
+        "MA": [],
+        "HE": [],
+        "EX": [],
+        "SE": [],
+    }
 
-    # --- A. Bright Lesions: EX (Hard Exudates) & SE (Soft Exudates) ---
+    # --- A. Microaneurysms (MA) — Focal microvascular capillary dilations (2-38 px) ---
+    kernel_ma = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    bh_ma = cv2.morphologyEx(g, cv2.MORPH_BLACKHAT, kernel_ma)
+    ma_thresh = float(np.percentile(bh_ma[valid_mask > 0], 97.0))
+    ma_candidates = (bh_ma > ma_thresh) & (valid_mask > 0)
+    num_ma, _, stats_ma, centroids_ma = cv2.connectedComponentsWithStats(ma_candidates.astype(np.uint8))
+
+    for i in range(1, num_ma):
+        area = int(stats_ma[i, cv2.CC_STAT_AREA])
+        if 2 <= area <= 38:
+            bw = int(stats_ma[i, cv2.CC_STAT_WIDTH])
+            bh = int(stats_ma[i, cv2.CC_STAT_HEIGHT])
+            aspect = float(bw) / max(bh, 1)
+            # Filter linear vessel branches
+            if 0.45 <= aspect <= 2.2:
+                cx, cy = int(centroids_ma[i][0]), int(centroids_ma[i][1])
+                bx = int(stats_ma[i, cv2.CC_STAT_LEFT])
+                by = int(stats_ma[i, cv2.CC_STAT_TOP])
+                cam_val = float(cam_resized[cy, cx])
+                conf = min(0.97, max(0.72, 0.76 + cam_val * 0.18 + (area / 38.0) * 0.03))
+                findings_by_type["MA"].append({
+                    "id": f"MA_{len(findings_by_type['MA'])+1:03d}",
+                    "type": "MA",
+                    "name": "Microaneurysm",
+                    "confidence": round(float(conf), 3),
+                    "bbox": [
+                        round(float(bx) / w, 4),
+                        round(float(by) / h, 4),
+                        round(float(max(bw, 14)) / w, 4),
+                        round(float(max(bh, 14)) / h, 4),
+                    ],
+                    "center": [round(float(cx) / w, 4), round(float(cy) / h, 4)],
+                    "area_px": area,
+                })
+
+    # --- B. Intraretinal Hemorrhages (HE) — Medium-large dark microvascular bleeds (39-700 px) ---
+    kernel_he = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13))
+    bh_he = cv2.morphologyEx(g, cv2.MORPH_BLACKHAT, kernel_he)
+    he_thresh = float(np.percentile(bh_he[valid_mask > 0], 97.2))
+    he_candidates = (bh_he > he_thresh) & (valid_mask > 0)
+    num_he, _, stats_he, centroids_he = cv2.connectedComponentsWithStats(he_candidates.astype(np.uint8))
+
+    for i in range(1, num_he):
+        area = int(stats_he[i, cv2.CC_STAT_AREA])
+        if 39 <= area <= 700:
+            bw = int(stats_he[i, cv2.CC_STAT_WIDTH])
+            bh = int(stats_he[i, cv2.CC_STAT_HEIGHT])
+            aspect = float(bw) / max(bh, 1)
+            if 0.35 <= aspect <= 2.8:
+                cx, cy = int(centroids_he[i][0]), int(centroids_he[i][1])
+                bx = int(stats_he[i, cv2.CC_STAT_LEFT])
+                by = int(stats_he[i, cv2.CC_STAT_TOP])
+                cam_val = float(cam_resized[cy, cx])
+                conf = min(0.98, max(0.70, 0.74 + cam_val * 0.20 + (area / 700.0) * 0.04))
+                findings_by_type["HE"].append({
+                    "id": f"HE_{len(findings_by_type['HE'])+1:03d}",
+                    "type": "HE",
+                    "name": "Intraretinal Hemorrhage",
+                    "confidence": round(float(conf), 3),
+                    "bbox": [
+                        round(float(bx) / w, 4),
+                        round(float(by) / h, 4),
+                        round(float(max(bw, 16)) / w, 4),
+                        round(float(max(bh, 16)) / h, 4),
+                    ],
+                    "center": [round(float(cx) / w, 4), round(float(cy) / h, 4)],
+                    "area_px": area,
+                })
+
+    # --- C. Bright Lesions: EX (Hard Exudates) & SE (Soft Exudates / Cotton Wool Spots) ---
     lab = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2LAB)
     l_channel = lab[:, :, 0]
-
-    # Top-hat transform to extract localized bright deposits
     kernel_ex = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
     tophat_bright = cv2.morphologyEx(l_channel, cv2.MORPH_TOPHAT, kernel_ex)
-
-    if np.any(valid_mask > 0):
-        ex_thresh = float(np.percentile(tophat_bright[valid_mask > 0], 98.2))
-    else:
-        ex_thresh = 255.0
-
+    ex_thresh = float(np.percentile(tophat_bright[valid_mask > 0], 98.0))
     ex_candidates = (tophat_bright > ex_thresh) & (valid_mask > 0)
-    num_labels_ex, labels_ex, stats_ex, centroids_ex = cv2.connectedComponentsWithStats(
-        ex_candidates.astype(np.uint8)
-    )
+    num_ex, _, stats_ex, centroids_ex = cv2.connectedComponentsWithStats(ex_candidates.astype(np.uint8))
 
-    for i in range(1, num_labels_ex):
+    for i in range(1, num_ex):
         area = int(stats_ex[i, cv2.CC_STAT_AREA])
-        if 4 <= area <= 500:
+        if 4 <= area <= 550:
             cx, cy = int(centroids_ex[i][0]), int(centroids_ex[i][1])
-            bx, by, bw, bh = (
-                int(stats_ex[i, cv2.CC_STAT_LEFT]),
-                int(stats_ex[i, cv2.CC_STAT_TOP]),
-                int(stats_ex[i, cv2.CC_STAT_WIDTH]),
-                int(stats_ex[i, cv2.CC_STAT_HEIGHT]),
-            )
+            bx, by = int(stats_ex[i, cv2.CC_STAT_LEFT]), int(stats_ex[i, cv2.CC_STAT_TOP])
+            bw, bh = int(stats_ex[i, cv2.CC_STAT_WIDTH]), int(stats_ex[i, cv2.CC_STAT_HEIGHT])
             cam_val = float(cam_resized[cy, cx])
             is_soft = area > 120 or (int(r[cy, cx]) > 180 and int(b[cy, cx]) > 120)
             lesion_type = "SE" if (is_soft and predicted_grade >= 3) else "EX"
-
-            conf = min(0.98, max(0.70, 0.72 + cam_val * 0.24 + (area / 500.0) * 0.04))
-
-            findings.append({
-                "id": f"{lesion_type}_{len(findings)+1:03d}",
+            conf = min(0.98, max(0.70, 0.72 + cam_val * 0.22 + (area / 550.0) * 0.04))
+            findings_by_type[lesion_type].append({
+                "id": f"{lesion_type}_{len(findings_by_type[lesion_type])+1:03d}",
                 "type": lesion_type,
                 "name": "Soft Exudate" if lesion_type == "SE" else "Hard Exudate",
                 "confidence": round(float(conf), 3),
@@ -112,69 +177,17 @@ def extract_retinal_lesions(
                 "area_px": area,
             })
 
-    # --- B. Dark Lesions: MA (Microaneurysms) & HE (Hemorrhages) ---
-    kernel_dark = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))
-    blackhat_dark = cv2.morphologyEx(g, cv2.MORPH_BLACKHAT, kernel_dark)
+    # Balance top findings across all 4 lesion types so MA is never starved
+    balanced_findings = []
+    for ltype in ["MA", "HE", "EX", "SE"]:
+        sorted_type = sorted(findings_by_type[ltype], key=lambda x: -x["confidence"])
+        balanced_findings.extend(sorted_type[:8])
 
-    if np.any(valid_mask > 0):
-        dark_thresh = float(np.percentile(blackhat_dark[valid_mask > 0], 97.5))
-    else:
-        dark_thresh = 255.0
-
-    dark_candidates = (blackhat_dark > dark_thresh) & (valid_mask > 0)
-    num_labels_dark, labels_dark, stats_dark, centroids_dark = cv2.connectedComponentsWithStats(
-        dark_candidates.astype(np.uint8)
-    )
-
-    for i in range(1, num_labels_dark):
-        area = int(stats_dark[i, cv2.CC_STAT_AREA])
-        bx, by, bw, bh = (
-            int(stats_dark[i, cv2.CC_STAT_LEFT]),
-            int(stats_dark[i, cv2.CC_STAT_TOP]),
-            int(stats_dark[i, cv2.CC_STAT_WIDTH]),
-            int(stats_dark[i, cv2.CC_STAT_HEIGHT]),
-        )
-        aspect_ratio = float(bw) / max(bh, 1)
-
-        # Suppress linear vessel segments (aspect ratio between 0.35 and 2.8)
-        if 3 <= area <= 600 and 0.35 <= aspect_ratio <= 2.8:
-            cx, cy = int(centroids_dark[i][0]), int(centroids_dark[i][1])
-            cam_val = float(cam_resized[cy, cx])
-
-            if area < 40:
-                lesion_type = "MA"
-                l_name = "Microaneurysm"
-            else:
-                lesion_type = "HE"
-                l_name = "Intraretinal Hemorrhage"
-
-            conf = min(0.99, max(0.68, 0.70 + cam_val * 0.25 + (area / 600.0) * 0.04))
-
-            findings.append({
-                "id": f"{lesion_type}_{len(findings)+1:03d}",
-                "type": lesion_type,
-                "name": l_name,
-                "confidence": round(float(conf), 3),
-                "bbox": [
-                    round(float(bx) / w, 4),
-                    round(float(by) / h, 4),
-                    round(float(max(bw, 12)) / w, 4),
-                    round(float(max(bh, 12)) / h, 4),
-                ],
-                "center": [round(float(cx) / w, 4), round(float(cy) / h, 4)],
-                "area_px": area,
-            })
-
-    # Sort findings by confidence descending and cap at 28 for clean visual rendering
-    findings = sorted(findings, key=lambda x: -x["confidence"])[:28]
-
-    # Compute breakdown counts
-    by_type = {"MA": 0, "HE": 0, "EX": 0, "SE": 0}
-    for f in findings:
-        by_type[f["type"]] += 1
+    final_findings = sorted(balanced_findings, key=lambda x: -x["confidence"])
+    by_type_counts = {t: len(findings_by_type[t]) for t in ["MA", "HE", "EX", "SE"]}
 
     return {
-        "total_count": len(findings),
-        "by_type": by_type,
-        "findings": findings,
+        "total_count": sum(by_type_counts.values()),
+        "by_type": by_type_counts,
+        "findings": final_findings,
     }

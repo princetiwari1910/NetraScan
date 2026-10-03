@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import { API_BASE_URL } from "../services/api";
+import { normalizeLesions, LESION_TYPES } from "../services/lesionDetector";
 
 import {
   Eye,
@@ -334,11 +335,7 @@ function Results() {
   // ============================================================
   // LESION FINDINGS & LOCALIZATIONS (MA, HE, EX, SE)
   // ============================================================
-  const lesionsData = analysisResult?.lesions || screeningRecord?.lesions || {
-    total_count: 0,
-    by_type: { MA: 0, HE: 0, EX: 0, SE: 0 },
-    findings: [],
-  };
+  const lesionsData = normalizeLesions(analysisResult || screeningRecord);
 
   const lesionFindings = lesionsData.findings || [];
   const lesionCounts = lesionsData.by_type || { MA: 0, HE: 0, EX: 0, SE: 0 };

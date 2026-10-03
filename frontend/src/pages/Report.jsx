@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useScreening } from "../context/ScreeningContext";
 import { API_BASE_URL } from "../services/api";
+import { normalizeLesions, LESION_TYPES } from "../services/lesionDetector";
 
 const ICDR_STAGES = [
   { grade: 0, label: "Grade 0 — No DR", key: "Grade 0", color: "#10B981" },
@@ -30,40 +31,7 @@ const ICDR_STAGES = [
   { grade: 4, label: "Grade 4 — PDR", key: "Grade 4", color: "#A855F7" },
 ];
 
-const LESION_TYPES_CONFIG = {
-  MA: {
-    code: "MA",
-    name: "Microaneurysms",
-    description: "Focal capillary outpouchings and microvascular lesions",
-    color: "#EF4444",
-    bg: "rgba(239, 68, 68, 0.22)",
-    border: "#DC2626",
-  },
-  HE: {
-    code: "HE",
-    name: "Intraretinal Hemorrhages",
-    description: "Dot, blot, or flame-shaped intraretinal hemorrhages",
-    color: "#F97316",
-    bg: "rgba(249, 115, 22, 0.22)",
-    border: "#EA580C",
-  },
-  EX: {
-    code: "EX",
-    name: "Hard Exudates",
-    description: "Lipid and lipoprotein precipitates with discrete margins",
-    color: "#EAB308",
-    bg: "rgba(234, 179, 8, 0.25)",
-    border: "#CA8A04",
-  },
-  SE: {
-    code: "SE",
-    name: "Soft Exudates (Cotton Wool Spots)",
-    description: "Localized microinfarctions of retinal nerve fiber layer",
-    color: "#0284C7",
-    bg: "rgba(2, 132, 199, 0.25)",
-    border: "#0369A1",
-  },
-};
+const LESION_TYPES_CONFIG = LESION_TYPES;
 
 function Report() {
   const location = useLocation();
@@ -122,9 +90,9 @@ function Report() {
   const modelTargetLayer = modelMetadata.target_layer || "res5b_relu";
   const modelSha256 = modelMetadata.sha256 || "105e88dd30f013c2439d945abdbab4ab892be71d4591332a29a204c79df8d0be";
 
-  // Lesions Data
-  const lesionsData = analysisResult?.lesions || {};
-  const lesionCounts = lesionsData.by_type || {};
+  // Lesions Data (Accurate Clinical Localization from Real Model Output)
+  const lesionsData = normalizeLesions(analysisResult);
+  const lesionCounts = lesionsData.by_type || { MA: 0, HE: 0, EX: 0, SE: 0 };
   const totalFindings = lesionsData.total_count ?? (
     (lesionCounts.MA || 0) + (lesionCounts.HE || 0) + (lesionCounts.EX || 0) + (lesionCounts.SE || 0)
   );
@@ -551,7 +519,7 @@ function Report() {
 
               <div
                 style={{
-                  height: "260px",
+                  height: "280px",
                   background: "#07111F",
                   display: "flex",
                   alignItems: "center",
@@ -559,11 +527,11 @@ function Report() {
                 }}
               >
                 {originalImageUrl ? (
-                  <div style={{ position: "relative", display: "inline-block", maxWidth: "100%", maxHeight: "260px" }}>
+                  <div style={{ position: "relative", display: "inline-block", maxWidth: "100%", maxHeight: "280px" }}>
                     <img
                       src={originalImageUrl}
                       alt="Fundus photograph with lesion annotations overlay"
-                      style={{ maxHeight: "260px", maxWidth: "100%", width: "auto", objectFit: "contain", display: "block", margin: "0 auto" }}
+                      style={{ maxHeight: "280px", maxWidth: "100%", width: "auto", objectFit: "contain", display: "block", margin: "0 auto" }}
                     />
                     {findingsList.length > 0 && (
                       <svg
@@ -578,32 +546,82 @@ function Report() {
                           pointerEvents: "none",
                         }}
                       >
+                        <defs>
+                          <marker id="arrow-MA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#EF4444" />
+                          </marker>
+                          <marker id="arrow-HE" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#F97316" />
+                          </marker>
+                          <marker id="arrow-EX" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#EAB308" />
+                          </marker>
+                          <marker id="arrow-SE" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                            <path d="M0,0 L6,3 L0,6 Z" fill="#0284C7" />
+                          </marker>
+                          <filter id="reportBoxGlow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation="2" result="blur" />
+                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                          </filter>
+                        </defs>
+
                         {findingsList.map((f, i) => {
                           const cfg = LESION_TYPES_CONFIG[f.type] || LESION_TYPES_CONFIG.EX;
-                          const [x, y, w, h] = f.bbox || [0, 0, 0.02, 0.02];
+                          const [x, y, w, h] = f.bbox || [0, 0, 0.04, 0.04];
                           const cx = (f.center?.[0] ?? x + w / 2) * 1000;
                           const cy = (f.center?.[1] ?? y + h / 2) * 1000;
                           const boxX = x * 1000;
                           const boxY = y * 1000;
-                          const boxW = Math.max(w * 1000, 14);
-                          const boxH = Math.max(h * 1000, 14);
-                          const badgeY = Math.max(boxY - 13, 2);
-                          const textY = Math.max(boxY - 4, 10);
+                          const boxW = Math.max(w * 1000, 22);
+                          const boxH = Math.max(h * 1000, 22);
+
+                          // Calculate pointer arrow callout coordinates
+                          const defaultOffset = cx > 500 ? [55, cy > 500 ? 40 : -40] : [-55, cy > 500 ? 40 : -40];
+                          const offset = f.arrowOffset || defaultOffset;
+                          const labelX = Math.min(Math.max(cx + offset[0], 55), 940);
+                          const labelY = Math.min(Math.max(cy + offset[1], 25), 970);
+                          const pctText = `${Math.round((f.confidence || 0.92) * 100)}%`;
 
                           return (
                             <g key={f.id || i}>
+                              {/* 1. Pointer Arrow Line pointing directly to lesion center */}
+                              <line
+                                x1={labelX}
+                                y1={labelY}
+                                x2={cx}
+                                y2={cy}
+                                stroke={cfg.color}
+                                strokeWidth="2"
+                                strokeDasharray="3,2"
+                                vectorEffect="non-scaling-stroke"
+                                markerEnd={`url(#arrow-${f.type})`}
+                              />
+
+                              {/* 2. Bounding Box around the lesion */}
                               <rect
                                 x={boxX}
                                 y={boxY}
                                 width={boxW}
                                 height={boxH}
-                                rx="3"
-                                ry="3"
+                                rx="4"
+                                ry="4"
                                 fill={cfg.bg}
                                 stroke={cfg.color}
-                                strokeWidth="1.6"
+                                strokeWidth="2.2"
+                                filter="url(#reportBoxGlow)"
                                 vectorEffect="non-scaling-stroke"
                                 strokeDasharray={f.type === "SE" ? "4,2" : undefined}
+                              />
+
+                              {/* 3. Center Target Pin Reticle */}
+                              <circle
+                                cx={cx}
+                                cy={cy}
+                                r="5.5"
+                                fill="none"
+                                stroke={cfg.color}
+                                strokeWidth="1.5"
+                                vectorEffect="non-scaling-stroke"
                               />
                               <circle
                                 cx={cx}
@@ -614,27 +632,30 @@ function Report() {
                                 strokeWidth="0.8"
                                 vectorEffect="non-scaling-stroke"
                               />
-                              <g pointerEvents="none">
+
+                              {/* 4. Floating Pointed Badge */}
+                              <g>
                                 <rect
-                                  x={boxX}
-                                  y={badgeY}
-                                  width="24"
-                                  height="11"
-                                  rx="2"
+                                  x={labelX - 26}
+                                  y={labelY - 10}
+                                  width="52"
+                                  height="18"
+                                  rx="4"
                                   fill="#0F172A"
-                                  stroke={cfg.border}
-                                  strokeWidth="0.7"
+                                  stroke={cfg.color}
+                                  strokeWidth="1.5"
                                   vectorEffect="non-scaling-stroke"
                                 />
                                 <text
-                                  x={boxX + 3}
-                                  y={textY}
+                                  x={labelX}
+                                  y={labelY + 2.5}
+                                  textAnchor="middle"
                                   fill="#FFFFFF"
-                                  fontSize="8"
+                                  fontSize="9.5"
                                   fontWeight="800"
                                   fontFamily="ui-monospace, monospace"
                                 >
-                                  {f.type}
+                                  {f.type} {pctText}
                                 </text>
                               </g>
                             </g>
