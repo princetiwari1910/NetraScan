@@ -302,14 +302,17 @@ function Analysis() {
               fundus_image: record.fundus_image || record.image_path || preview || "",
               image_path: record.image_path || record.fundus_image || preview || "",
               gradcam_image: record.gradcam_reference || "",
-              evidence: record.ai_evidence || [],
+              evidence: (typeof record.ai_evidence === "object" && record.ai_evidence !== null && Array.isArray(record.ai_evidence.evidence))
+                ? record.ai_evidence.evidence
+                : (Array.isArray(record.ai_evidence) ? record.ai_evidence : []),
+              ai_evidence: record.ai_evidence || [],
               quality_metric: {
                 laplacian_variance: record.laplacian_variance,
                 is_blurry: false,
                 threshold: 35.0,
                 status: record.quality_status,
               },
-              lesions: record.lesions || null,
+              lesions: record.lesions || record.ai_evidence?.lesions || null,
               model: record.model || {
                 name: record.model_name || "NetraScan ResNet-18",
                 version: record.model_version || "1.0",

@@ -77,17 +77,27 @@ def map_screening_to_response(
     gradcam_img = storage_service.resolve_image_url(s.gradcam_reference)
 
     # Parse lesions and evidence list
-    evidence_list = s.ai_evidence
+    raw_ev = s.ai_evidence
+    if isinstance(raw_ev, str):
+        try:
+            raw_ev = json.loads(raw_ev)
+        except Exception:
+            raw_ev = [raw_ev]
+
+    evidence_list = ["Standard fundus evaluation completed by NetraScan AI diagnostic pipeline."]
     parsed_lesions = lesions
-    if isinstance(s.ai_evidence, dict):
-        evidence_list = s.ai_evidence.get("evidence", [])
-        if parsed_lesions is None and "lesions" in s.ai_evidence and s.ai_evidence["lesions"]:
+    if isinstance(raw_ev, dict):
+        evidence_list = raw_ev.get("evidence", evidence_list)
+        if parsed_lesions is None and "lesions" in raw_ev and raw_ev["lesions"]:
             try:
-                parsed_lesions = LesionSummary(**s.ai_evidence["lesions"])
+                if isinstance(raw_ev["lesions"], dict):
+                    parsed_lesions = LesionSummary(**raw_ev["lesions"])
+                elif isinstance(raw_ev["lesions"], str):
+                    parsed_lesions = LesionSummary(**json.loads(raw_ev["lesions"]))
             except Exception:
                 pass
-    elif isinstance(s.ai_evidence, list):
-        evidence_list = s.ai_evidence
+    elif isinstance(raw_ev, list):
+        evidence_list = raw_ev
 
     ai = get_ai_service()
     model_meta = ModelMetadata(
@@ -564,17 +574,27 @@ def get_screening_clinical_report(
     fundus_resolved = storage_service.resolve_image_url(screening.image_path) or None
 
     # Parse lesions and evidence
+    raw_ev = screening.ai_evidence
+    if isinstance(raw_ev, str):
+        try:
+            raw_ev = json.loads(raw_ev)
+        except Exception:
+            raw_ev = [raw_ev]
+
     evidence_list = ["Standard fundus evaluation completed."]
     lesions_obj: Optional[LesionSummary] = None
-    if isinstance(screening.ai_evidence, dict):
-        evidence_list = screening.ai_evidence.get("evidence", evidence_list)
-        if screening.ai_evidence.get("lesions"):
+    if isinstance(raw_ev, dict):
+        evidence_list = raw_ev.get("evidence", evidence_list)
+        if raw_ev.get("lesions"):
             try:
-                lesions_obj = LesionSummary(**screening.ai_evidence["lesions"])
+                if isinstance(raw_ev["lesions"], dict):
+                    lesions_obj = LesionSummary(**raw_ev["lesions"])
+                elif isinstance(raw_ev["lesions"], str):
+                    lesions_obj = LesionSummary(**json.loads(raw_ev["lesions"]))
             except Exception:
                 pass
-    elif isinstance(screening.ai_evidence, list):
-        evidence_list = screening.ai_evidence
+    elif isinstance(raw_ev, list):
+        evidence_list = raw_ev
 
     ai = get_ai_service()
     model_meta = ModelMetadata(

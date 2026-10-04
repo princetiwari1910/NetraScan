@@ -61,15 +61,51 @@ export function normalizeLesions(input) {
     };
   }
 
-  // Handle case where input is already the lesions object or container
+  // Parse if input itself is a JSON string
+  if (typeof input === "string") {
+    try {
+      input = JSON.parse(input);
+    } catch {
+      return {
+        total_count: 0,
+        by_type: { MA: 0, HE: 0, EX: 0, SE: 0 },
+        findings: [],
+      };
+    }
+  }
+
   let rawLesions = null;
-  if (input.by_type || (input.findings && !input.lesions)) {
+
+  // 1. Direct lesions object (contains by_type or findings or total_count)
+  if (input.by_type || (Array.isArray(input.findings) && !input.lesions)) {
     rawLesions = input;
-  } else if (input.lesions) {
-    rawLesions = input.lesions;
-  } else if (input.ai_evidence?.lesions) {
-    rawLesions = input.ai_evidence.lesions;
-  } else {
+  }
+  // 2. Container object with .lesions property
+  else if (input.lesions) {
+    let l = input.lesions;
+    if (typeof l === "string") {
+      try { l = JSON.parse(l); } catch { l = null; }
+    }
+    if (l && typeof l === "object") {
+      rawLesions = l;
+    }
+  }
+  // 3. Container object with .ai_evidence property
+  else if (input.ai_evidence) {
+    let ev = input.ai_evidence;
+    if (typeof ev === "string") {
+      try { ev = JSON.parse(ev); } catch { ev = null; }
+    }
+    if (ev && typeof ev === "object" && ev.lesions) {
+      rawLesions = typeof ev.lesions === "string" ? JSON.parse(ev.lesions) : ev.lesions;
+    }
+  }
+  // 4. Container object with .evidence property (if evidence was serialized with lesions)
+  else if (input.evidence && typeof input.evidence === "object" && input.evidence.lesions) {
+    rawLesions = typeof input.evidence.lesions === "string" ? JSON.parse(input.evidence.lesions) : input.evidence.lesions;
+  }
+
+  if (!rawLesions || typeof rawLesions !== "object") {
     return {
       total_count: 0,
       by_type: { MA: 0, HE: 0, EX: 0, SE: 0 },
@@ -78,19 +114,33 @@ export function normalizeLesions(input) {
   }
 
   const findings = Array.isArray(rawLesions.findings) ? rawLesions.findings : [];
-  const byType = rawLesions.by_type || { MA: 0, HE: 0, EX: 0, SE: 0 };
-  const totalCount = rawLesions.total_count ?? (
-    (byType.MA || 0) + (byType.HE || 0) + (byType.EX || 0) + (byType.SE || 0)
-  );
+  const rawByType = rawLesions.by_type || {};
+
+  const byType = {
+    MA: Number(rawByType.MA) || 0,
+    HE: Number(rawByType.HE) || 0,
+    EX: Number(rawByType.EX) || 0,
+    SE: Number(rawByType.SE) || 0,
+  };
+
+  // If byType is all 0s but findings exist, count from findings
+  if (byType.MA === 0 && byType.HE === 0 && byType.EX === 0 && byType.SE === 0 && findings.length > 0) {
+    findings.forEach((f) => {
+      const type = f.type || "EX";
+      if (byType[type] !== undefined) {
+        byType[type] = (byType[type] || 0) + 1;
+      }
+    });
+  }
+
+  const sumByType = byType.MA + byType.HE + byType.EX + byType.SE;
+  const totalCount = rawLesions.total_count !== undefined && rawLesions.total_count !== null
+    ? Number(rawLesions.total_count)
+    : Math.max(sumByType, findings.length);
 
   return {
     total_count: totalCount,
-    by_type: {
-      MA: Number(byType.MA) || 0,
-      HE: Number(byType.HE) || 0,
-      EX: Number(byType.EX) || 0,
-      SE: Number(byType.SE) || 0,
-    },
+    by_type: byType,
     findings,
   };
 }

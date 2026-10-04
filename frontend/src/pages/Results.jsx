@@ -335,7 +335,17 @@ function Results() {
   // ============================================================
   // LESION FINDINGS & LOCALIZATIONS (MA, HE, EX, SE)
   // ============================================================
-  const lesionsData = normalizeLesions(analysisResult || screeningRecord);
+  const lesionsData = (() => {
+    const fromResult = normalizeLesions(analysisResult);
+    if (fromResult.total_count > 0 || (fromResult.findings && fromResult.findings.length > 0)) {
+      return fromResult;
+    }
+    const fromRecord = normalizeLesions(screeningRecord);
+    if (fromRecord.total_count > 0 || (fromRecord.findings && fromRecord.findings.length > 0)) {
+      return fromRecord;
+    }
+    return fromResult;
+  })();
 
   const lesionFindings = lesionsData.findings || [];
   const lesionCounts = lesionsData.by_type || { MA: 0, HE: 0, EX: 0, SE: 0 };
@@ -1044,6 +1054,18 @@ function Results() {
                                 <feGaussianBlur stdDeviation="3" result="blur" />
                                 <feComposite in="SourceGraphic" in2="blur" operator="over" />
                               </filter>
+                              <marker id="ws-arrow-MA" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                                <path d="M0,0 L6,3 L0,6 Z" fill="#EF4444" />
+                              </marker>
+                              <marker id="ws-arrow-HE" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                                <path d="M0,0 L6,3 L0,6 Z" fill="#F97316" />
+                              </marker>
+                              <marker id="ws-arrow-EX" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                                <path d="M0,0 L6,3 L0,6 Z" fill="#EAB308" />
+                              </marker>
+                              <marker id="ws-arrow-SE" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                                <path d="M0,0 L6,3 L0,6 Z" fill="#0284C7" />
+                              </marker>
                             </defs>
 
                             {filteredFindings.map((finding) => {
@@ -1051,8 +1073,17 @@ function Results() {
                               const [x, y, w, h] = finding.bbox || [0, 0, 0.02, 0.02];
                               const cx = (finding.center?.[0] ?? x + w / 2) * 1000;
                               const cy = (finding.center?.[1] ?? y + h / 2) * 1000;
+                              const boxX = x * 1000;
+                              const boxY = y * 1000;
+                              const boxW = Math.max(w * 1000, 16);
+                              const boxH = Math.max(h * 1000, 16);
                               const isHovered = hoveredLesion?.id === finding.id;
                               const isSelected = selectedLesion?.id === finding.id;
+
+                              const defaultOffset = cx > 500 ? [45, cy > 500 ? 35 : -35] : [-45, cy > 500 ? 35 : -35];
+                              const offset = finding.arrowOffset || defaultOffset;
+                              const labelX = Math.min(Math.max(cx + offset[0], 45), 955);
+                              const labelY = Math.min(Math.max(cy + offset[1], 20), 980);
 
                               return (
                                 <g
@@ -1070,6 +1101,21 @@ function Results() {
                                     }
                                   }}
                                 >
+                                  {/* Pointer Arrow Line when selected, hovered, or active */}
+                                  {(isSelected || isHovered) && (
+                                    <line
+                                      x1={labelX}
+                                      y1={labelY}
+                                      x2={cx}
+                                      y2={cy}
+                                      stroke={config.color}
+                                      strokeWidth="2"
+                                      strokeDasharray="3,2"
+                                      vectorEffect="non-scaling-stroke"
+                                      markerEnd={`url(#ws-arrow-${finding.type})`}
+                                    />
+                                  )}
+
                                   {/* Selected Lesion Reticle & Radar Halo */}
                                   {isSelected && (
                                     <>
@@ -1109,15 +1155,16 @@ function Results() {
 
                                   {/* Bounding Box Rect */}
                                   <rect
-                                    x={x * 1000}
-                                    y={y * 1000}
-                                    width={Math.max(w * 1000, 14)}
-                                    height={Math.max(h * 1000, 14)}
+                                    x={boxX}
+                                    y={boxY}
+                                    width={boxW}
+                                    height={boxH}
                                     rx="3"
                                     ry="3"
-                                    fill={isSelected ? config.bg : isHovered ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)"}
+                                    fill={isSelected ? config.bg : isHovered ? "rgba(255,255,255,0.25)" : config.bg || "rgba(0,0,0,0.15)"}
                                     stroke={isSelected ? config.color : config.border}
-                                    strokeWidth={isSelected ? "2.5" : isHovered ? "2" : "1.5"}
+                                    strokeWidth={isSelected ? "2.5" : isHovered ? "2.2" : "1.8"}
+                                    filter={isSelected || isHovered ? "url(#lesionGlow)" : undefined}
                                     vectorEffect="non-scaling-stroke"
                                     strokeDasharray={finding.type === "SE" ? "4,2" : undefined}
                                   />
@@ -1126,12 +1173,40 @@ function Results() {
                                   <circle
                                     cx={cx}
                                     cy={cy}
-                                    r={isSelected ? "3.5" : isHovered ? "3" : "2"}
+                                    r={isSelected ? "4" : isHovered ? "3.5" : "2.5"}
                                     fill={config.color}
                                     stroke="#FFFFFF"
-                                    strokeWidth="0.8"
+                                    strokeWidth="1"
                                     vectorEffect="non-scaling-stroke"
                                   />
+
+                                  {/* Small Badge Callout on Hover / Selection */}
+                                  {(isSelected || isHovered) && (
+                                    <g pointerEvents="none">
+                                      <rect
+                                        x={labelX - 22}
+                                        y={labelY - 9}
+                                        width="44"
+                                        height="16"
+                                        rx="3"
+                                        fill="#0F172A"
+                                        stroke={config.color}
+                                        strokeWidth="1.2"
+                                        vectorEffect="non-scaling-stroke"
+                                      />
+                                      <text
+                                        x={labelX}
+                                        y={labelY + 2.5}
+                                        textAnchor="middle"
+                                        fill="#FFFFFF"
+                                        fontSize="8.5"
+                                        fontWeight="800"
+                                        fontFamily="ui-monospace, monospace"
+                                      >
+                                        {finding.type}
+                                      </text>
+                                    </g>
+                                  )}
                                 </g>
                               );
                             })}
