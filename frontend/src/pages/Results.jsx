@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useScreening } from "../context/ScreeningContext";
 import ScanningEyeIcon from "../components/ScanningEyeIcon";
 import { API_BASE_URL } from "../services/api";
-import { normalizeLesions, LESION_TYPES } from "../services/lesionDetector";
+import { normalizeLesions, extractLesionsFromImageElement, LESION_TYPES } from "../services/lesionDetector";
 
 import {
   Eye,
@@ -169,6 +169,7 @@ function Results() {
   const [activeLesionFilter, setActiveLesionFilter] = useState("ALL"); // "ALL" | "MA" | "HE" | "EX" | "SE"
   const [selectedLesion, setSelectedLesion] = useState(null);
   const [hoveredLesion, setHoveredLesion] = useState(null);
+  const [imageExtractedLesions, setImageExtractedLesions] = useState(null);
 
   // ============================================================
   // WORKSTATION PAN / ZOOM & LESION FOCUS CONTROLS
@@ -343,6 +344,9 @@ function Results() {
     const fromRecord = normalizeLesions(screeningRecord);
     if (fromRecord.total_count > 0 || (fromRecord.findings && fromRecord.findings.length > 0)) {
       return fromRecord;
+    }
+    if (imageExtractedLesions && (imageExtractedLesions.total_count > 0 || (imageExtractedLesions.findings && imageExtractedLesions.findings.length > 0))) {
+      return imageExtractedLesions;
     }
     return fromResult;
   })();
@@ -1040,6 +1044,16 @@ function Results() {
                           src={originalFundus || preview}
                           alt="Retinal fundus photograph"
                           draggable={false}
+                          onLoad={(e) => {
+                            const grade = Number(analysisResult?.dr_grade ?? screeningRecord?.predicted_grade ?? 0);
+                            if (grade > 0 && (!lesionsData.findings || lesionsData.findings.length === 0)) {
+                              extractLesionsFromImageElement(e.currentTarget, grade).then((res) => {
+                                if (res && (res.total_count > 0 || (res.findings && res.findings.length > 0))) {
+                                  setImageExtractedLesions(res);
+                                }
+                              });
+                            }
+                          }}
                         />
 
                         {/* Synchronized SVG Lesion Coordinate Layer (Active in 'lesions' tab) */}
