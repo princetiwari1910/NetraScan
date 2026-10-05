@@ -177,17 +177,34 @@ def extract_retinal_lesions(
                 "area_px": area,
             })
 
-    # Balance top findings across all 4 lesion types so MA is never starved
-    balanced_findings = []
+    # Balance and rank top findings across all 4 lesion types
+    final_findings = []
+    # Maximum findings to return per type to provide clear, readable annotations without excessive clutter
+    max_per_type = {
+        "MA": 12 if predicted_grade >= 3 else 6,
+        "HE": 6 if predicted_grade >= 3 else 3,
+        "EX": 20 if predicted_grade >= 3 else 8,
+        "SE": 6 if predicted_grade >= 3 else 2,
+    }
     for ltype in ["MA", "HE", "EX", "SE"]:
         sorted_type = sorted(findings_by_type[ltype], key=lambda x: -x["confidence"])
-        balanced_findings.extend(sorted_type[:8])
+        final_findings.extend(sorted_type[:max_per_type.get(ltype, 10)])
 
-    final_findings = sorted(balanced_findings, key=lambda x: -x["confidence"])
-    by_type_counts = {t: len(findings_by_type[t]) for t in ["MA", "HE", "EX", "SE"]}
+    # Sort final findings by confidence descending
+    final_findings = sorted(final_findings, key=lambda x: -x["confidence"])
+    
+    # Re-index finding IDs sequentially
+    for i, finding in enumerate(final_findings):
+        finding["id"] = f"{finding['type']}_{i + 1:03d}"
+
+    # Calculate exact counts from the actual findings array so UI boxes and badges match 1:1
+    by_type_counts = {
+        t: sum(1 for f in final_findings if f["type"] == t)
+        for t in ["MA", "HE", "EX", "SE"]
+    }
 
     return {
-        "total_count": sum(by_type_counts.values()),
+        "total_count": len(final_findings),
         "by_type": by_type_counts,
         "findings": final_findings,
     }
